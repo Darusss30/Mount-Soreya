@@ -1,65 +1,67 @@
 # Darus Hub
 
-Versi Darus Hub tersedia di [`DarusHub.lua`](./DarusHub.lua), dikembangkan dari
-`UbeyHubV3.lua` pada proyek [Ubey-Hub](https://github.com/UbeyDev/Ubey-Hub).
-Menu utama langsung terbuka tanpa memasukkan key, melewati iklan, atau menghubungi layanan aktivasi Supabase.
+Darus Hub dikembangkan dari **`UBEYHUB.lua`**, bukan `UbeyHubV3.lua`.
+Sumber: [UbeyDev/Ubey-Hub — UBEYHUB.lua](https://github.com/UbeyDev/Ubey-Hub/blob/7152183/UBEYHUB.lua).
+Berkas utama adalah [`DarusHub.lua`](./DarusHub.lua).
+Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabase.
 
-Fitur yang tersedia:
+## Fitur
 
-- Auto Collect material.
-- Auto Mine & Wood, dengan pilihan material dan pengaturan waktu tunggu.
-- Auto Kios Taruh, dengan pilihan slot dan item.
-- Tombol mengambang untuk menampilkan atau menyembunyikan menu.
-- Kontrol geser dengan mouse/sentuhan, penyesuaian ukuran layar, dan tombol X
-  untuk menghentikan sesi serta membersihkan prosesnya.
-- Pesan status untuk alat yang tidak ditemukan, kios yang tidak tersedia,
-  penolakan server, dan permintaan kios yang belum mendapat respons.
+- Fishing & Sell: dua mode pancing yang saling eksklusif, pilihan spot, rotasi spot, jeda gigitan, dan timer jual ke NPC.
+- Favorite: filter rarity/mutasi, auto favorite, serta unfavorite berdasarkan filter atau seluruh ikan.
+- Galatama dan perpindahan berdasarkan perkiraan jadwal Core.
+- Teleport shop/NPC dan pemain.
+- Summit dengan rute checkpoint dan pengaturan tween.
+- Pengaturan pemain, Anti-AFK, headless lokal, RGB Fire, dan halo.
+- Privacy, pengaturan grafis, konfigurasi, webhook opsional, dan kredit sumber.
 
-Gunakan `DarusHub.lua` sebagai berkas utama untuk pengembangan berikutnya.
-Skrip ini bergantung pada lingkungan klien Roblox dan struktur objek game yang sesuai.
-State kini disimpan secara lokal; `getgenv()` dan `fireproximityprompt()` tidak diperlukan.
-Ini bukan aplikasi HTML atau aplikasi desktop mandiri.
+Fitur pancing mengikuti struktur `Withering Rod/Mechanics/Remotes` dari sumber.
+Nama remote, lokasi, dan aturan game tetap harus cocok dengan versi game yang sedang dimainkan.
+Pengaturan visual lokal tidak menjamin perubahan yang terlihat oleh pemain lain.
+Jadwal Core memakai menit 00–10 pada jam perangkat; ini perkiraan, bukan deteksi event dari server.
 
-Versi lama dapat dilihat di repositori sumber Ubey-Hub.
-Generator key `index.html` versi lama tidak diperlukan oleh Darus Hub.
+## Perbaikan
 
-Perbaikan bug:
+- Satu worker pancing untuk kedua mode; listener gigitan dipasang sebelum lemparan.
+- OFF, pergantian mode, dan respawn membatalkan tahap pancing berikutnya.
+- Menu X dan eksekusi ulang membersihkan koneksi, worker, tween, serta efek buatan sesi.
+- Pengaturan rod, PlatformStand, nama tampilan, WalkSpeed, kepala, dan grafis dipulihkan sesuai perubahan sesi.
+- Jual ikan mengembalikan posisi meskipun pancing OFF atau server gagal; permintaan yang belum selesai tidak diduplikasi.
+- Pemanggilan RemoteFunction memiliki batas tunggu 10 detik di klien. Timeout tidak membatalkan pekerjaan yang mungkin masih berjalan di server.
+- Nilai angka divalidasi; konfigurasi rusak menggunakan default. Kegagalan penyimpanan ditampilkan sesuai hasilnya.
+- Filter disimpan; reset menyelaraskan konfigurasi dan tampilan. Mutasi `8-Bit` dicocokkan sebagai teks literal.
+- Select All mengikuti pilihan aktual; Unfavorite menghentikan Auto Favorite agar kedua operasi tidak saling membatalkan.
+- Scroll mengikuti isi, ukuran menu menyesuaikan layar, dan drag mengabaikan jari lain serta tidak memicu klik setelah digeser.
+- Halo mempertahankan posisi antarbagian dan mengelas semua bagian yang diperlukan.
+- Webhook hanya melaporkan sukses untuk respons HTTP 2xx, tanpa mention massal. Pengiriman otomatis perlu diaktifkan kembali setiap sesi.
 
-- Menjalankan ulang versi baru menghentikan worker dan koneksi sesi sebelumnya.
-- OFF, respawn, dan penutupan menu melepaskan interaksi prompt yang sedang ditahan.
-- Anti-Water memulihkan transparansi, collision, pengaturan Terrain, dan status berenang.
-  Pencocokan nama `air` tidak lagi mengenai objek seperti `Chair` atau `Stairs`.
-  Bagian air dikenali dari nama persis `air`/`water`, Material Water, atau atribut `DarusWater = true`.
-- Prompt dicatat sekali dan diperbarui saat objek masuk/keluar Workspace;
-  model bertingkat tidak menimbulkan interaksi ganda.
-- Mining dan wood memakai cooldown per prompt; worker kios tidak menunggu aktivitas tersebut selesai.
-- Permintaan kios manual dan otomatis berbagi satu kunci permintaan aktif.
-  Setelah 10 detik tanpa jawaban, UI menampilkan timeout tanpa mengirim ulang
-  permintaan yang mungkin masih diproses server.
-- Scroll mengikuti isi halaman; slider dan tombol mengambang mengabaikan jari lain
-  serta melepaskan drag saat aplikasi kehilangan fokus.
+## Konfigurasi dan penggunaan
 
-Luck pancing dan mutasi:
+Skrip berjalan di lingkungan klien Roblox. Ini bukan aplikasi HTML atau desktop.
+State tidak membutuhkan `getgenv()`. Penyimpanan `DarusHub_Config.json` membutuhkan
+fungsi `readfile`, `isfile`, dan `writefile` dari lingkungan yang mendukungnya.
+Jika tidak tersedia, pengaturan sesi tetap dapat dipakai dan status penyimpanan akan menjelaskan keterbatasannya.
+Webhook opsional memerlukan fungsi HTTP request yang kompatibel dan URL yang Anda isi sendiri.
 
-Tidak ada fitur yang menjamin ikan atau mutasi tertentu dalam satu kali pancing.
-Repositori ini tidak memuat kode server pemilihan hasil ikan. Nilai lokal pada hub
-tidak dapat menjamin perubahan keputusan server game. Fitur tersebut memerlukan
-integrasi dengan logika pemancingan di server yang dikelola pemilik game.
-Lihat [komunikasi klien/server Roblox](https://create.roblox.com/docs/scripting/events/remote).
+Gunakan tombol X untuk mengakhiri sesi. Tombol minus dan tombol DH hanya mengubah tampilan menu.
+Jika versi sumber lama sudah berjalan tanpa mekanisme cleanup, masuk ulang ke game sekali sebelum memakai versi ini.
 
-Validasi:
+Tidak ada fitur yang menjamin ikan atau mutasi tertentu dalam sekali pancing.
+Keputusan hasil ikan tetap berada di server game; repositori ini tidak memuat kode server tersebut.
 
-- Kompilasi menggunakan CLI Luau.
-- 45 pemeriksaan regresi dalam runtime simulasi: lifecycle, UI, multi-touch,
-  pemulihan air, respawn, pembatalan prompt, cooldown, dan respons kios.
-- Jalankan di PowerShell dengan direktori binari dari [rilis resmi Luau](https://github.com/luau-lang/luau/releases):
+## Validasi
 
-  ```powershell
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\run.ps1 -LuauDirectory C:\path\to\luau
-  ```
+Kompilasi Luau dan **60 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
+respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
+summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
+Pengujian tidak mengirim pesan atau permintaan ke server game/Discord nyata.
+
+Jalankan dengan binari dari [rilis resmi Luau](https://github.com/luau-lang/luau/releases):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\run.ps1 -LuauDirectory C:\path\to\luau
+```
 
 Simulasi tidak menguji rendering, fisika, replikasi, atau aturan server game asli.
-Validasi langsung di Roblox masih diperlukan, terutama kecocokan nama alat,
-ActionText prompt, dan path RemoteFunction kios yang diwarisi dari versi V3.
-Jika versi lama yang belum memiliki cleanup sudah berjalan, masuk ulang ke game
-sekali sebelum menguji versi baru agar loop lama tidak ikut berjalan.
+Pengujian langsung di Roblox masih diperlukan; hasil ini bukan jaminan seluruh fitur kompatibel dengan setiap pembaruan game.
