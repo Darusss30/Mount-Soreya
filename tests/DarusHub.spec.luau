@@ -377,7 +377,7 @@ local mancing=Instance.new("Folder",remoteFolder); mancing.Name="Mancing"
 local favorite=Instance.new("RemoteEvent",mancing); favorite.Name="TandaiFavorit"
 local favorites={}
 favorite.serverCallback=function(id,value) table.insert(favorites,{id,value}) end
-getAll.serverCallback=function() return {{uid="fish8",rarity="Common",mutasi="8-Bit",favorit=false}} end
+getAll.serverCallback=function() return {{uid="fish8",nama="Test Fish",rarity="Common",mutasi="8-Bit",favorit=false}} end
 local mutationScope=findText("Fav Filter Mutasi","TextButton").Parent
 click("8-Bit",mutationScope)
 click("AUTO FAVORITE"); step(3)
@@ -401,6 +401,87 @@ check(root.Position.X==initialPosition.X and root.Position.Y==initialPosition.Y,
 step(7)
 check(sellCalls==1,"no duplicate sell while server pending")
 click("Auto Sell Timer")
+
+-- Targets use received catches, match both fields literally, and stop both automation modes.
+step(15) -- let the previous simulated server sale finish
+click("Target & Statistik")
+local catchPage=findText("TARGET IKAN & STATISTIK SESI","TextLabel").Parent
+check(catchPage.Visible,"catch dashboard navigation opens")
+click("Pantau Target dan Stop Otomatis")
+check(findText("Pantau Target dan Stop Otomatis","TextButton").Text:find("[OFF]",1,true),"empty target cannot arm")
+fill("Nama ikan target","  Test Fish  ")
+fill("Mutasi target","8-Bit")
+click("Pantau Target dan Stop Otomatis")
+click("Smart Auto Fishing (Di Tempat Saja)")
+click("Auto Sell Timer")
+notify.OnClientEvent:Fire("GotFish",{uid="catch1",baseName="Test Fish",rarity="Rare",mutation="8xBit"}); step(0)
+check(findText("Smart Auto Fishing (Di Tempat Saja)","TextButton").Text:find("[ON]",1,true),"wrong mutation does not stop fishing")
+notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="test fish",rarity="Secret",mutation="8-bit"}); step(0)
+check(findText("Smart Auto Fishing (Di Tempat Saja)","TextButton").Text:find("[OFF]",1,true),"matching target stops fishing")
+check(findText("Auto Sell Timer","TextButton").Text:find("[OFF]",1,true),"target stops auto sell")
+check(playerGui.DarusHub.TargetCatchNotification.Visible,"target shows visible dismissible notification")
+check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"received catches counted")
+check(findText("Secret: 1","TextLabel",catchPage)~=nil,"rarity counts tracked")
+notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="test fish",rarity="Secret",mutation="8-bit"}); step(0)
+check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"duplicate server catch ID counted once")
+notify.OnClientEvent:Fire("Bite",{}); notify.OnClientEvent:Fire("GotFish",{}); step(0)
+check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"non-catch and malformed events ignored")
+click("Reset Statistik Sesi")
+notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="test fish"}); step(0)
+check(findText("Tangkapan: 0","TextLabel",catchPage)~=nil,"stats reset preserves deduplication")
+fill("Nama ikan target",""); fill("Mutasi target","Gold")
+click("Smart Auto Fishing + Teleport")
+notify.OnClientEvent:Fire("GotFish",{uid="catch3",baseName="Any Fish",rarity="Forgotten",mutation="Gold"}); step(0)
+check(findText("Smart Auto Fishing + Teleport","TextButton").Text:find("[OFF]",1,true),"mutation-only target stops teleport fishing")
+check(findText("Rarity tertinggi: Any Fish | Gold | Forgotten","TextLabel",catchPage)~=nil,"highest known rarity displayed")
+click("Pantau Target dan Stop Otomatis")
+fill("Nama ikan target","Test Fish"); fill("Mutasi target","8-Bit")
+fill("Nama ikan dilindungi","Keep Fish, Another Fish")
+fill("Mutasi dilindungi","Gold, 8-Bit")
+click("Simpan Konfigurasi")
+local catchSaved=encoded[files["DarusHub_Config.json"]]
+check(catchSaved.TargetName=="Test Fish" and catchSaved.ProtectMutations=="Gold, 8-Bit","target and protection fields persist")
+
+-- Bulk sale is blocked even for favorited fish: server sell exclusions are unknown.
+sell.serverCallback=function() sellCalls+=1; return true end
+local guardedPosition=root.Position
+local function attemptSale(data)
+	getAll.serverCallback=function() return data end
+	local count=sellCalls
+	click("Auto Sell Timer"); step(7.5); click("Auto Sell Timer")
+	return sellCalls-count
+end
+check(attemptSale({{uid="p1",nama="Rare Fish",rarity="Secret",mutasi="Normal"}})==0,"default Secret protection blocks bulk sale")
+check(attemptSale({{uid="p2",nama="Rare Fish",rarity="Forgotten",mutasi="Normal"}})==0,"default Forgotten protection blocks bulk sale")
+check(attemptSale({{uid="p3",nama="test fish",rarity="Common",mutasi="8-bit"}})==0,"configured target protected when tracking is OFF")
+check(attemptSale({{uid="p4",nama="keep fish",rarity="Common",mutasi="Normal"}})==0,"custom protected name blocks sale")
+check(attemptSale({{uid="p5",nama="Ordinary Fish",rarity="Common",mutasi="Gold"}})==0,"protected mutation blocks sale")
+check(attemptSale({{uid="p6",nama="Ordinary Fish",rarity="Common",mutasi="Normal",favorit=true}})==0,"existing favorite blocks bulk sale")
+check(attemptSale({{uid="p7",rarity="Common",mutasi="Normal"}})==0,"incomplete inventory cannot pass sale guard")
+check(attemptSale({{uid="p8",nama="Ordinary Fish",rarity="Common",mutasi="Normal"},false})==0,"malformed row cannot be silently omitted")
+check(attemptSale({items={}})==0,"unknown inventory envelope blocked")
+check(attemptSale(nil)==0,"failed inventory response blocks sale")
+check(attemptSale({{uid="p9",nama="Ordinary Fish",rarity="Common",mutasi="8xBit"}})==1,"safe fish sold and mutation pattern is literal")
+check(root.Position.X==guardedPosition.X and root.Position.Y==guardedPosition.Y,"guarded sale restores initial position")
+local beforeRace=sellCalls
+getAll.serverCallback=function()
+	notify.OnClientEvent:Fire("GotFish",{uid="lateCatch",baseName="New Fish",rarity="Secret",mutation="Normal"})
+	task.wait(0.1)
+	return {}
+end
+click("Auto Sell Timer"); step(7.5); click("Auto Sell Timer")
+check(sellCalls==beforeRace,"catch during inventory read invalidates sale snapshot")
+getAll.serverCallback=function() task.wait(2); return {} end
+click("Auto Sell Timer"); step(7); click("Auto Sell Timer"); step(3)
+check(sellCalls==beforeRace,"OFF during inventory read prevents delayed sale")
+getAll.serverCallback=function() task.wait(2); return {} end
+click("Auto Sell Timer"); step(7); click("Auto Sell Timer"); click("Auto Sell Timer"); step(2)
+check(sellCalls==beforeRace,"OFF/ON invalidates the previous sale check")
+click("Auto Sell Timer")
+getAll.serverCallback=function() error("inventory unavailable") end
+click("Auto Sell Timer"); step(7.5); click("Auto Sell Timer")
+check(sellCalls==beforeRace,"inventory exception blocks sale")
+getAll.serverCallback=function() return {} end
 
 -- Visual changes restore both on OFF and shutdown.
 local head=player.Character.Head
@@ -441,6 +522,7 @@ step(2.1)
 click("Reset Konfigurasi"); step(0)
 check(box("Bite Delay").Text=="0.5" and box("Jeda Waktu Jual").Text=="5","reset refreshes numeric UI")
 check(box("Paste Discord").Text=="","reset clears webhook UI")
+check(box("Nama ikan target").Text=="" and box("Rarity dilindungi").Text=="Secret, Forgotten","reset restores target and protection defaults")
 check(findText("8-Bit","TextButton",mutationScope).Text:find("[ ]",1,true),"reset refreshes filter UI")
 step(2)
 
@@ -450,8 +532,13 @@ RunHub(); step(2)
 check(gui.destroyed,"rerun shuts down previous GUI")
 check(connectionCount()<=baseline,"rerun does not leak connections: " .. connectionCount() .. "/" .. baseline)
 local cleanBaseline=connectionCount()
+fill("Nama ikan target","Reload Fish"); fill("Mutasi dilindungi","8-Bit")
+click("Simpan Konfigurasi")
 RunHub(); step(2)
 check(connectionCount()==cleanBaseline,"consecutive fresh runs have stable connection count")
+check(box("Nama ikan target").Text=="Reload Fish" and box("Mutasi dilindungi").Text=="8-Bit","saved catch settings reload")
+check(findText("Pantau Target dan Stop Otomatis","TextButton").Text:find("[OFF]",1,true),"reloaded target monitor starts OFF")
+check(findText("Tangkapan: 0","TextLabel")~=nil,"rerun begins fresh catch statistics")
 check(player.Character.Humanoid.WalkSpeed==16 and head.Transparency==0.25 and services.Lighting.GlobalShadows,"rerun restores character and lighting")
 check(head:FindFirstChild("CustomPlayerHalo")==nil,"rerun removes owned halo")
 local newGui=playerGui:FindFirstChild("DarusHub")

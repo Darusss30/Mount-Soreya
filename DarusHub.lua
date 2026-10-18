@@ -155,6 +155,14 @@ State.Config = {
 	WebhookUrl = ""
 }
 
+App.catchDefaults = {TargetName = "", TargetMutation = "", ProtectNames = "",
+	ProtectMutations = "", ProtectRarities = "Secret, Forgotten"}
+for key, value in pairs(App.catchDefaults) do State.Config[key] = value end
+
+function App.CleanText(value)
+	return type(value) == "string" and value:sub(1, 500):match("^%s*(.-)%s*$") or ""
+end
+
 local function SaveConfig()
 	if type(writefile) ~= "function" then App.Report("Penyimpanan file tidak tersedia di lingkungan ini."); return false end
 	local data = table.clone(State.Config)
@@ -179,6 +187,9 @@ local function LoadConfig()
 	State.Config.TargetGroupId = math.floor(App.Number(data.TargetGroupId, 7019573, 1, 1e12))
 	State.Config.WebhookEnabled = false
 	State.Config.WebhookUrl = type(data.WebhookUrl) == "string" and data.WebhookUrl or ""
+	for key, default in pairs(App.catchDefaults) do
+		State.Config[key] = type(data[key]) == "string" and App.CleanText(data[key]) or default
+	end
 	App.loadedConfig = data
 end
 
@@ -186,6 +197,7 @@ local function ResetConfig()
 	if App.RodEditor then App.RodEditor.ResetAll() end
 	State.Config = {BiteDelay = "0.5", SelectedSpot = "Spot Mancing Jembatan", AutoSellTimer = "5",
 		AntiAdminEnabled = false, TargetGroupId = 7019573, WebhookEnabled = false, WebhookUrl = ""}
+	for key, value in pairs(App.catchDefaults) do State.Config[key] = value end
 	State.BiteDelayInput, State.AutoSellTimerInput = "0.5", "5"
 	State.SelectedFishingSpot = State.Config.SelectedSpot
 	State.CoreEventActive = false
@@ -268,9 +280,75 @@ end
 ------------------------------------------------------------------
 local hookedRemotes = setmetatable({}, {__mode = "k"})
 
+App.catchRevision = 0
+App.seenCatchIds, App.catchIdOrder = {}, {}
+function App.ResetCatchStats()
+	App.catchStats = {started = os.clock(), total = 0, byRarity = {}, bestRank = 0, best = "-", last = "-"}
+end
+App.ResetCatchStats()
+
+function App.TargetMatches(fish)
+	local name, mutation = App.CleanText(State.Config.TargetName):lower(), App.CleanText(State.Config.TargetMutation):lower()
+	return (name ~= "" or mutation ~= "")
+		and (name == "" or App.CleanText(fish.Name):lower() == name)
+		and (mutation == "" or App.CleanText(fish.Mutation):lower() == mutation)
+end
+
+function App.InFishList(value, list)
+	local normalized = App.CleanText(value):lower()
+	if normalized == "" then return false end
+	for entry in tostring(list or ""):gmatch("[^,\n]+") do
+		if App.CleanText(entry):lower() == normalized then return true end
+	end
+	return false
+end
+
+function App.ProtectedFish(fish)
+	return fish.IsFavorited or App.TargetMatches(fish)
+		or App.InFishList(fish.Name, State.Config.ProtectNames)
+		or App.InFishList(fish.Mutation, State.Config.ProtectMutations)
+		or App.InFishList(fish.Rarity, State.Config.ProtectRarities)
+end
+
+function App.RecordCatch(data)
+	local name = App.CleanText(data.baseName or data.originalName or data.nama or data.Name)
+	if name == "" then return false end
+	local id = data.uid or data.UUID
+	if type(id) == "string" or type(id) == "number" then
+		id = tostring(id)
+		if App.seenCatchIds[id] then return false end
+		App.seenCatchIds[id] = true
+		table.insert(App.catchIdOrder, id)
+		if #App.catchIdOrder > 1000 then App.seenCatchIds[table.remove(App.catchIdOrder, 1)] = nil end
+	end
+	local fish = {Name = name, Rarity = App.CleanText(data.rarity or data.Rarity),
+		Mutation = App.CleanText(data.mutation or data.mutasi or data.Mutation)}
+	if fish.Rarity == "" then fish.Rarity = "Unknown" end
+	if fish.Mutation == "" then fish.Mutation = "Normal" end
+	App.catchRevision += 1
+	local stats = App.catchStats
+	stats.total += 1
+	local rarity = fish.Rarity:lower()
+	stats.byRarity[rarity] = (stats.byRarity[rarity] or 0) + 1
+	stats.last = fish.Name .. " | " .. fish.Mutation .. " | " .. fish.Rarity
+	local rank = table.find({"common", "uncommon", "rare", "epic", "legendary", "mythical", "secret", "forgotten"}, rarity) or 0
+	if rank > stats.bestRank then stats.bestRank, stats.best = rank, stats.last end
+	if State.TargetTracking and App.TargetMatches(fish) then
+		App.toggles["Smart Auto Fishing + Teleport"]:Set(false)
+		App.toggles["Smart Auto Fishing (Di Tempat Saja)"]:Set(false)
+		App.toggles["Auto Sell Timer ke NPC"]:Set(false)
+		App.targetMessage = "TARGET DIDAPAT: " .. stats.last .. ". Auto fishing dan auto sell dihentikan."
+		if App.targetBanner then App.targetBanner.Text = App.targetMessage; App.targetBanner.Visible = true end
+		App.Report(App.targetMessage)
+	end
+	if App.RefreshCatchStats then App.RefreshCatchStats() end
+	return true
+end
+
 local function ProcessNotifyClient(actionType, fishDataArg)
 	if actionType == "GotFish" and type(fishDataArg) == "table" then
 		pcall(function()
+			if not App.RecordCatch(fishDataArg) then return end
 			local name = fishDataArg.baseName or fishDataArg.originalName or "Unknown Fish"
 			local rarity = fishDataArg.rarity or "Common"
 			local mutation = fishDataArg.mutation or "Normal"
@@ -315,6 +393,7 @@ local function ListenToFishCatch()
 		end
 
 		if LocalPlayer.Character then ScanCharacter(LocalPlayer.Character) end
+		ScanCharacter(LocalPlayer:FindFirstChild("Backpack"))
 		App.Connect(LocalPlayer.CharacterAdded, ScanCharacter)
 
 		App.Connect(ReplicatedStorage.DescendantAdded, function(v)
@@ -497,9 +576,16 @@ local function TriggerSellToNpc()
 	if App.pending[sell] then return end
 	State.Selling = true
 	App.fishingEpoch += 1
+	local sellEpoch = App.sellEpoch
 	local ok, err = pcall(function()
 		App.Set("sellPosition",root,"CFrame",NpcSellCFrame + Vector3.new(0,5,0))
-		if App.Wait(0.8, function() return State.AutoSellRunning and LocalPlayer.Character == character end) then App.Invoke(sell) end
+		if App.Wait(0.8, function() return State.AutoSellRunning and App.sellEpoch == sellEpoch and LocalPlayer.Character == character end) then
+			local revision = App.catchRevision
+			local allowed, reason = App.CheckSaleProtection()
+			if not allowed then App.Report(reason); return end
+			if revision ~= App.catchRevision then App.Report("Jual dibatalkan: ada tangkapan baru saat pemeriksaan."); return end
+			if App.running and State.AutoSellRunning and App.sellEpoch == sellEpoch and LocalPlayer.Character == character then App.Invoke(sell) end
+		end
 	end)
 	-- Always return, including when fishing is OFF or the request errors.
 	if App.running then App.Restore("sellPosition") end
@@ -516,7 +602,8 @@ end
 
 local function GetServerFishData()
 	local fishDataList = {}
-	pcall(function()
+	local complete = false
+	local ok = pcall(function()
 		local repStorage = game:GetService("ReplicatedStorage")
 		local ambilSemuaRemote = repStorage:FindFirstChild("Remote")
 			and repStorage.Remote:FindFirstChild("Inventaris")
@@ -526,21 +613,41 @@ local function GetServerFishData()
 			local result = {App.Invoke(ambilSemuaRemote)}
 			local data = result[1]
 			if type(data) == "table" then
+				-- Only a complete array is safe for the bulk-sale guard.
+				for key in pairs(data) do
+					if type(key) ~= "number" or key % 1 ~= 0 or key < 1 or key > #data then return end
+				end
+				complete = true
 				for _, fish in ipairs(data) do
 					if type(fish) == "table" and (fish.uid or fish.UUID) then
+						local name = fish.baseName or fish.originalName or fish.nama or fish.Name
+						local rarity = fish.rarity or fish.Rarity
+						local mutation = fish.mutasi or fish.mutation or fish.Mutation
+						if App.CleanText(name) == "" or App.CleanText(rarity) == "" or App.CleanText(mutation) == "" then complete = false end
 						table.insert(fishDataList, {
 							UUID = tostring(fish.uid or fish.UUID),
-							Name = tostring(fish.nama or fish.Name or ""),
-							Rarity = tostring(fish.rarity or fish.Rarity or ""),
-							Mutation = tostring(fish.mutasi or fish.Mutation or ""),
+							Name = tostring(name or ""),
+							Rarity = tostring(rarity or ""),
+							Mutation = tostring(mutation or ""),
 							IsFavorited = fish.favorit or fish.IsFavorit or fish.IsFavorite or false
 						})
-					end
+					else complete = false end
 				end
 			end
 		end
 	end)
-	return fishDataList
+	return fishDataList, ok and complete
+end
+
+function App.CheckSaleProtection()
+	local fishList, complete = GetServerFishData()
+	if not complete then return false, "Jual dibatalkan: inventaris tidak lengkap atau gagal dibaca." end
+	for _, fish in ipairs(fishList) do
+		if App.ProtectedFish(fish) then
+			return false, "Jual dibatalkan: ikan dilindungi " .. fish.Name .. " (" .. fish.Mutation .. ")."
+		end
+	end
+	return true
 end
 
 function App.MatchesFish(fish, rarities, mutations)
@@ -846,6 +953,7 @@ local CreditsPage = MakePage()
 local RodEditorPage = MakePage()
 
 local function HideAll()
+	if App.catchPage then App.catchPage.Visible = false end
 	FishingPage.Visible = false
 	FavoritePage.Visible = false
 	GalatamaPage.Visible = false
@@ -897,6 +1005,96 @@ local function AddToggle(parent, text, callback)
 	controller:Set(false, true)
 	App.Connect(b.MouseButton1Click, function() controller:Set(not controller.value) end)
 	return controller
+end
+
+do
+	local nav = CreateNavButton("Target & Statistik", 480)
+	Sidebar.CanvasSize = UDim2.fromOffset(0, 520)
+	local page = MakePage()
+	App.catchPage = page
+	App.Connect(nav.MouseButton1Click, function() HideAll(); page.Visible = true end)
+	local function row(class, text, height)
+		local item = Instance.new(class, page)
+		item.Size = UDim2.new(1, -8, 0, height or 38)
+		item.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+		item.TextColor3 = Color3.new(1, 1, 1)
+		item.Font = Enum.Font.Gotham
+		item.TextSize = 12
+		item.TextWrapped = true
+		item.Text = text
+		Instance.new("UICorner", item)
+		return item
+	end
+	row("TextLabel", "TARGET IKAN & STATISTIK SESI")
+	row("TextLabel", "Nama dan mutasi dicocokkan persis, tanpa membedakan huruf besar. Kolom kosong berarti bebas. Ini pemantau hasil, bukan pengatur peluang.", 66)
+	local fields = {}
+	local function field(key, title)
+		row("TextLabel", title, 26)
+		local input = row("TextBox", State.Config[key])
+		input.PlaceholderText = title
+		input.ClearTextOnFocus = false
+		fields[key] = input
+		App.Connect(input.FocusLost, function()
+			State.Config[key] = App.CleanText(input.Text)
+			input.Text = State.Config[key]
+		end)
+	end
+	field("TargetName", "Nama ikan target (kosong = semua)")
+	field("TargetMutation", "Mutasi target (kosong = semua)")
+	local targetStatus = row("TextLabel", "Pemantauan target belum aktif.", 60)
+	AddToggle(page, "Pantau Target dan Stop Otomatis", function(enabled)
+		if enabled and App.CleanText(State.Config.TargetName) == "" and App.CleanText(State.Config.TargetMutation) == "" then
+			App.toggles["Pantau Target dan Stop Otomatis"]:Set(false, true)
+			State.TargetTracking = false
+			App.targetMessage = "Isi nama ikan atau mutasi sebelum mengaktifkan target."
+		else
+			State.TargetTracking = enabled
+			App.targetMessage = enabled and "Menunggu tangkapan target dari game..." or "Pemantauan target berhenti."
+		end
+		if App.RefreshCatchStats then App.RefreshCatchStats() end
+	end)
+	row("TextLabel", "PELINDUNG AUTO SELL")
+	row("TextLabel", "Selalu melindungi ikan favorit dan target yang diisi. Jika ada ikan dilindungi, seluruh jual otomatis dibatalkan karena game memakai JualSemua. Tidak melindungi penjualan manual di luar hub.", 80)
+	field("ProtectNames", "Nama ikan dilindungi (pisahkan koma)")
+	field("ProtectMutations", "Mutasi dilindungi (pisahkan koma)")
+	field("ProtectRarities", "Rarity dilindungi (pisahkan koma)")
+	local statsLabel = row("TextLabel", "", 150)
+	local reset = row("TextButton", "Reset Statistik Sesi")
+	App.Connect(reset.MouseButton1Click, function() App.ResetCatchStats(); App.RefreshCatchStats() end)
+	row("TextLabel", "Statistik hanya menghitung notifikasi GotFish sejak hub dibuka/reset. Rarity tertinggi memakai urutan kategori, bukan peluang numerik. Simpan pilihan melalui Settings > Simpan Konfigurasi.", 75)
+	local banner = Instance.new("TextButton", Gui)
+	banner.Name = "TargetCatchNotification"
+	banner.AnchorPoint = Vector2.new(0.5, 0)
+	banner.Position = UDim2.new(0.5, 0, 0, 12)
+	banner.Size = UDim2.new(0.85, 0, 0, 75)
+	banner.BackgroundColor3 = Color3.fromRGB(0, 100, 80)
+	banner.TextColor3 = Color3.new(1, 1, 1)
+	banner.Font = Enum.Font.GothamBold
+	banner.TextSize = 14
+	banner.TextWrapped = true
+	banner.ZIndex = 50
+	banner.Visible = false
+	Instance.new("UICorner", banner)
+	App.targetBanner = banner
+	App.Connect(banner.MouseButton1Click, function() banner.Visible = false end)
+	function App.RefreshCatchStats()
+		local stats = App.catchStats
+		local elapsed = math.max(0, os.clock() - stats.started)
+		local rate = elapsed > 0 and stats.total * 60 / elapsed or 0
+		statsLabel.Text = string.format("Tangkapan: %d | Durasi: %02d:%02d | %.2f ikan/menit\nSecret: %d | Forgotten: %d\nRarity tertinggi: %s\nTerakhir: %s",
+			stats.total, math.floor(elapsed / 60), math.floor(elapsed % 60), rate,
+			stats.byRarity.secret or 0, stats.byRarity.forgotten or 0, stats.best, stats.last)
+		targetStatus.Text = App.targetMessage or "Pemantauan target belum aktif."
+	end
+	App.configViews = App.configViews or {}
+	table.insert(App.configViews, function()
+		for key, input in pairs(fields) do input.Text = State.Config[key] end
+		banner.Visible = false
+		App.targetMessage = nil
+		App.RefreshCatchStats()
+	end)
+	App.RefreshCatchStats()
+	App.Spawn(function() while App.Wait(1) do if page.Visible then App.RefreshCatchStats() end end end)
 end
 
 ----------------------------------------------------
@@ -993,15 +1191,17 @@ end)
 
 AddToggle(FishingPage, "Auto Sell Timer ke NPC", function(v)
 	State.AutoSellRunning = v
+	App.sellEpoch = (App.sellEpoch or 0) + 1
+	App.lastSell = os.clock()
 	if not v then App.Restore("sellPosition"); State.Selling = false end
 end)
 App.Spawn(function()
-	local lastSell = os.clock()
+	App.lastSell = os.clock()
 	while App.Wait(0.2) do
-		if not State.AutoSellRunning then lastSell = os.clock()
-		elseif os.clock()-lastSell >= App.Number(State.AutoSellTimerInput,5,0.1,1440)*60 then
+		if not State.AutoSellRunning then App.lastSell = os.clock()
+		elseif os.clock()-App.lastSell >= App.Number(State.AutoSellTimerInput,5,0.1,1440)*60 then
 			TriggerSellToNpc()
-			lastSell = os.clock()
+			App.lastSell = os.clock()
 		end
 	end
 end)
