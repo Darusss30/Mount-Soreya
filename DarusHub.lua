@@ -103,6 +103,7 @@ end
 function App.Cleanup()
 	if not App.running then return end
 	App.running = false
+	if App.RodEditor then App.RodEditor.ResetAll() end
 	if App.tween then App.tween:Cancel(); App.tween = nil end
 	for connection in pairs(App.connections) do connection:Disconnect() end
 	for thread in pairs(App.threads) do
@@ -182,6 +183,7 @@ local function LoadConfig()
 end
 
 local function ResetConfig()
+	if App.RodEditor then App.RodEditor.ResetAll() end
 	State.Config = {BiteDelay = "0.5", SelectedSpot = "Spot Mancing Jembatan", AutoSellTimer = "5",
 		AntiAdminEnabled = false, TargetGroupId = 7019573, WebhookEnabled = false, WebhookUrl = ""}
 	State.BiteDelayInput, State.AutoSellTimerInput = "0.5", "5"
@@ -424,7 +426,10 @@ local function OptimizeRodSettings(rod)
 	if not settings then return end
 	local timeSetting = settings:FindFirstChild("Time_before_getfish")
 	local miniGame = settings:FindFirstChild("EnableMiniGame")
-	if timeSetting and (timeSetting:IsA("NumberValue") or timeSetting:IsA("IntValue")) then App.Set("rod", timeSetting, "Value", 0.05) end
+	if timeSetting and (timeSetting:IsA("NumberValue") or timeSetting:IsA("IntValue"))
+		and not (App.RodEditor and App.RodEditor.IsEdited(timeSetting)) then
+		App.Set("rod", timeSetting, "Value", 0.05)
+	end
 	if miniGame and miniGame:IsA("BoolValue") then App.Set("rod", miniGame, "Value", false) end
 end
 
@@ -800,6 +805,8 @@ local PlayerTpBtn = CreateNavButton("Teleport Player", 305)
 local PrivacyBtn = CreateNavButton("Privacy", 340)
 local SettingsBtn = CreateNavButton("Settings", 375)
 local CreditsBtn = CreateNavButton("Credits", 410)
+local RodEditorBtn = CreateNavButton("Rod & Value", 445)
+Sidebar.CanvasSize = UDim2.fromOffset(0,485)
 
 local function MakePage()
 	local f = Instance.new("ScrollingFrame")
@@ -836,6 +843,7 @@ local PlayerTpPage = MakePage()
 local PrivacyPage = MakePage()
 local SettingsPage = MakePage()
 local CreditsPage = MakePage()
+local RodEditorPage = MakePage()
 
 local function HideAll()
 	FishingPage.Visible = false
@@ -849,6 +857,7 @@ local function HideAll()
 	PrivacyPage.Visible = false
 	SettingsPage.Visible = false
 	CreditsPage.Visible = false
+	RodEditorPage.Visible = false
 end
 
 App.Connect(HomeBtn.MouseButton1Click, function() HideAll(); FishingPage.Visible = true end)
@@ -862,6 +871,11 @@ App.Connect(PlayerTpBtn.MouseButton1Click, function() HideAll(); PlayerTpPage.Vi
 App.Connect(PrivacyBtn.MouseButton1Click, function() HideAll(); PrivacyPage.Visible = true end)
 App.Connect(SettingsBtn.MouseButton1Click, function() HideAll(); SettingsPage.Visible = true end)
 App.Connect(CreditsBtn.MouseButton1Click, function() HideAll(); CreditsPage.Visible = true end)
+App.Connect(RodEditorBtn.MouseButton1Click, function()
+	HideAll()
+	RodEditorPage.Visible = true
+	if App.RodEditor then App.RodEditor.Refresh() end
+end)
 
 local function AddToggle(parent, text, callback)
 	local b = Instance.new("TextButton", parent)
@@ -2094,6 +2108,284 @@ MakeDraggable(Float)
 App.Connect(Float.MouseButton1Click, function()
 	if not App.dragSuppressed[Float] or os.clock() >= App.dragSuppressed[Float] then Main.Visible = not Main.Visible end
 end)
+
+-- Numeric values exposed by rods in this player's inventory. No server values
+-- are fabricated, and edits are never reapplied when another script changes them.
+do
+	local Editor = {rods = {}, fields = {}, rodRows = {}, fieldRows = {}, edits = {}, ids = setmetatable({}, {__mode="k"}), nextId = 0}
+	App.RodEditor = Editor
+
+	local function label(text, height)
+		local object = Instance.new("TextLabel", RodEditorPage)
+		object.Size = UDim2.new(1,0,0,height or 30)
+		object.BackgroundTransparency = 1
+		object.Text = text
+		object.TextWrapped = true
+		object.TextColor3 = Color3.fromRGB(210,220,235)
+		object.Font = Enum.Font.Gotham
+		object.TextSize = 12
+		return object
+	end
+	local function button(parent, text, height)
+		local object = Instance.new("TextButton", parent)
+		object.Size = UDim2.new(1,-6,0,height or 32)
+		object.Text = text
+		object.TextWrapped = true
+		object.BackgroundColor3 = Color3.fromRGB(35,35,45)
+		object.TextColor3 = Color3.new(1,1,1)
+		object.Font = Enum.Font.Gotham
+		object.TextSize = 11
+		Instance.new("UICorner",object)
+		return object
+	end
+	local function list(height)
+		local frame = Instance.new("ScrollingFrame",RodEditorPage)
+		frame.Size = UDim2.new(1,0,0,height)
+		frame.BackgroundTransparency = 1
+		frame.CanvasSize = UDim2.fromOffset(0,0)
+		frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		frame.ScrollBarThickness = 4
+		local layout = Instance.new("UIListLayout",frame)
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Padding = UDim.new(0,4)
+		return frame
+	end
+	label("ROD & VALUE",26)
+	label("Perubahan lokal. Luck dan hasil tangkapan tetap bergantung pada server.",38)
+	local refreshButton = button(RodEditorPage,"Refresh Daftar Rod")
+	local rodStatus = label("Memindai rod di tas dan karakter...",36)
+	local rodList = list(100)
+	local fieldStatus = label("Pilih rod, lalu pilih value yang ingin diubah.",36)
+	local fieldList = list(145)
+	local currentValue = label("Belum ada value dipilih.",48)
+	local input = Instance.new("TextBox",RodEditorPage)
+	input.Name = "RodValueInput"
+	input.Size = UDim2.new(1,0,0,34)
+	input.PlaceholderText = "Nilai baru (angka)"
+	input.Text = ""
+	input.ClearTextOnFocus = false
+	input.TextColor3 = Color3.new(1,1,1)
+	input.BackgroundColor3 = Color3.fromRGB(35,35,45)
+	input.TextSize = 13
+	Instance.new("UICorner",input)
+	local applyButton = button(RodEditorPage,"Terapkan Value Lokal")
+	local resetButton = button(RodEditorPage,"Reset Value Terpilih")
+	local resetAllButton = button(RodEditorPage,"Reset Semua Value Rod")
+	local status = label("Hanya nilai angka yang tersedia pada rod akan ditampilkan.",40)
+
+	local function owned(rod)
+		local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+		return rod and rod.Parent ~= nil and (rod.Parent == backpack or rod.Parent == LocalPlayer.Character)
+	end
+	local function isRod(object)
+		if not object:IsA("Tool") then return false end
+		local name = object.Name:lower()
+		local mechanics = object:FindFirstChild("Mechanics")
+		return name:find("rod",1,true) ~= nil or name:find("pancing",1,true) ~= nil
+			or (mechanics ~= nil and mechanics:FindFirstChild("Remotes") ~= nil)
+	end
+	local function key(field) return field.attribute and ("attribute:" .. field.attribute) or "property:Value" end
+	local function read(field)
+		if field.attribute then return field.object:GetAttribute(field.attribute) end
+		return field.object.Value
+	end
+	local function write(field,value)
+		if field.attribute then field.object:SetAttribute(field.attribute,value)
+		else field.object.Value = value end
+	end
+	local function exists(field)
+		return field and (field.object == field.rod or field.object:IsDescendantOf(field.rod))
+			and (field.attribute ~= nil or field.object:IsA("NumberValue") or field.object:IsA("IntValue"))
+			and type(read(field)) == "number"
+	end
+	local function record(field)
+		local records = Editor.edits[field.object]
+		return records and records[key(field)]
+	end
+	local function restore(entry)
+		local ok, err = pcall(function()
+			-- Do not recreate an attribute removed by the game.
+			if exists(entry) then write(entry,entry.original) end
+		end)
+		if not ok then App.Report("Reset value rod gagal: " .. tostring(err)) end
+		return ok
+	end
+	function Editor.IsEdited(object)
+		return Editor.edits[object] and Editor.edits[object]["property:Value"] ~= nil
+	end
+	function Editor.ResetAll()
+		local ok = true
+		for object, records in pairs(Editor.edits) do
+			for name, entry in pairs(records) do
+				if restore(entry) then records[name]=nil else ok=false end
+			end
+			if next(records)==nil then Editor.edits[object]=nil end
+		end
+		return ok
+	end
+	local function clearRows(rows)
+		for _, row in ipairs(rows) do
+			row.connection:Disconnect()
+			App.connections[row.connection] = nil
+			row.button:Destroy()
+		end
+		table.clear(rows)
+	end
+	local function path(object,rod)
+		local names = {}
+		while object and object ~= rod do table.insert(names,1,object.Name); object=object.Parent end
+		return #names > 0 and table.concat(names," / ") or "Rod"
+	end
+	local function scanFields(rod)
+		local fields = {}
+		if not owned(rod) then return fields end
+		local objects = rod:GetDescendants()
+		table.insert(objects,1,rod)
+		for _, object in ipairs(objects) do
+			if object:IsA("NumberValue") or object:IsA("IntValue") then
+				table.insert(fields,{object=object,rod=rod,title=path(object,rod),kind=object.ClassName})
+			end
+			for name,value in pairs(object:GetAttributes()) do
+				if type(value) == "number" then
+					table.insert(fields,{object=object,rod=rod,attribute=name,title=path(object,rod) .. " / @" .. name,kind="Attribute"})
+				end
+			end
+		end
+		table.sort(fields,function(a,b) return a.title < b.title end)
+		return fields
+	end
+	local function same(a,b)
+		return a and b and a.object == b.object and a.attribute == b.attribute and a.kind == b.kind and a.title == b.title
+	end
+	function Editor.Refresh()
+		local rods = {}
+		local function scan(container)
+			if not container then return end
+			for _, object in ipairs(container:GetChildren()) do
+				if isRod(object) then
+					if not Editor.ids[object] then Editor.nextId += 1; Editor.ids[object] = Editor.nextId end
+					table.insert(rods,object)
+				end
+			end
+		end
+		scan(LocalPlayer:FindFirstChildOfClass("Backpack"))
+		scan(LocalPlayer.Character)
+		table.sort(rods,function(a,b)
+			if a.Name == b.Name then return Editor.ids[a] < Editor.ids[b] end
+			return a.Name < b.Name
+		end)
+		if not table.find(rods,Editor.selectedRod) then
+			Editor.selectedRod, Editor.selectedField = rods[1], nil
+			input.Text = ""
+		end
+		local changed = #rods ~= #Editor.rods
+		for index,rod in ipairs(rods) do if Editor.rods[index] ~= rod then changed=true end end
+		if changed then
+			clearRows(Editor.rodRows)
+			for index,rod in ipairs(rods) do
+				local row = button(rodList,"",36)
+				row.LayoutOrder = index
+				local connection = App.Connect(row.MouseButton1Click,function()
+					if not owned(rod) then Editor.Refresh(); return end
+					Editor.selectedRod, Editor.selectedField = rod, nil
+					input.Text = ""
+					Editor.Refresh()
+				end)
+				table.insert(Editor.rodRows,{button=row,connection=connection,rod=rod})
+			end
+		end
+		Editor.rods = rods
+		rodStatus.Text = #rods > 0 and (#rods .. " rod ditemukan di tas/karakter.") or "Rod belum ditemukan. Simpan di tas atau pegang pancing."
+		for _, row in ipairs(Editor.rodRows) do
+			row.button.Text = row.rod.Name .. " #" .. Editor.ids[row.rod] .. (row.rod.Parent == LocalPlayer.Character and " [Dipakai]" or " [Tas]")
+			row.button.BackgroundColor3 = row.rod == Editor.selectedRod and Color3.fromRGB(0,100,180) or Color3.fromRGB(35,35,45)
+		end
+		local fields = scanFields(Editor.selectedRod)
+		local selected
+		for _, field in ipairs(fields) do if same(field,Editor.selectedField) then selected=field end end
+		if Editor.selectedField and not selected then input.Text="" end
+		Editor.selectedField = selected
+		changed = #fields ~= #Editor.fields
+		for index,field in ipairs(fields) do if not same(field,Editor.fields[index]) then changed=true end end
+		if changed then
+			clearRows(Editor.fieldRows)
+			for index,field in ipairs(fields) do
+				local row = button(fieldList,"",42)
+				row.LayoutOrder = index
+				local connection = App.Connect(row.MouseButton1Click,function()
+					if Editor.selectedRod ~= field.rod or not owned(field.rod) or not exists(field) then Editor.Refresh(); return end
+					Editor.selectedField = field
+					input.Text = tostring(read(field))
+					Editor.Refresh()
+				end)
+				table.insert(Editor.fieldRows,{button=row,connection=connection,field=field})
+			end
+		end
+		Editor.fields = fields
+		fieldStatus.Text = #fields > 0 and (Editor.selectedRod.Name .. ": pilih salah satu dari " .. #fields .. " value angka.") or "Tidak ada value angka yang tersedia pada rod ini."
+		for _, row in ipairs(Editor.fieldRows) do
+			row.button.Text = row.field.title .. " [" .. row.field.kind .. "] = " .. tostring(read(row.field))
+			row.button.BackgroundColor3 = same(row.field,selected) and Color3.fromRGB(0,100,180) or Color3.fromRGB(35,35,45)
+		end
+		if selected then
+			local saved = record(selected)
+			currentValue.Text = "Saat ini: " .. tostring(read(selected)) .. (saved and (" | Sebelum edit: " .. tostring(saved.original)) or "")
+		else currentValue.Text = "Belum ada value dipilih." end
+	end
+	App.Connect(applyButton.MouseButton1Click,function()
+		local field = Editor.selectedField
+		if not field or not owned(field.rod) or not exists(field) then status.Text="Pilih value rod yang masih tersedia."; Editor.Refresh(); return end
+		local value = tonumber(input.Text)
+		if not value or value ~= value or math.abs(value) == math.huge then status.Text="Masukkan angka valid, bukan NaN atau infinity."; return end
+		if field.kind == "IntValue" and (value%1 ~= 0 or math.abs(value)>9007199254740991) then status.Text="IntValue memerlukan bilangan bulat dalam rentang presisi yang didukung."; return end
+		local saved = record(field)
+		local original = read(field)
+		local optimized = not field.attribute and App.snapshots.rod and App.snapshots.rod[field.object]
+		if optimized and optimized.Value ~= nil then original=optimized.Value end
+		local ok, err = pcall(write,field,value)
+		if not ok then status.Text="Value tidak dapat diubah: " .. tostring(err); return end
+		if not saved then
+			saved=table.clone(field)
+			saved.original=original
+			Editor.edits[field.object] = Editor.edits[field.object] or {}
+			Editor.edits[field.object][key(field)] = saved
+		end
+		-- Transfer ownership of this value from the automatic optimizer to the editor.
+		if optimized then optimized.Value=nil; if next(optimized)==nil then App.snapshots.rod[field.object]=nil end end
+		status.Text="Nilai lokal diperbarui. Server dapat mengabaikan atau mengubahnya kembali."
+		Editor.Refresh()
+	end)
+	App.Connect(resetButton.MouseButton1Click,function()
+		local field = Editor.selectedField
+		local saved = field and record(field)
+		if not saved then status.Text="Value terpilih belum diedit."; return end
+		if restore(saved) then
+			Editor.edits[field.object][key(field)]=nil
+			if next(Editor.edits[field.object])==nil then Editor.edits[field.object]=nil end
+			status.Text="Value dikembalikan ke nilai sebelum edit."
+			input.Text=tostring(read(field))
+		end
+		Editor.Refresh()
+	end)
+	App.Connect(resetAllButton.MouseButton1Click,function()
+		status.Text=Editor.ResetAll() and "Semua edit value rod telah direset." or "Sebagian value tidak dapat direset."
+		Editor.Refresh()
+	end)
+	App.Connect(refreshButton.MouseButton1Click,Editor.Refresh)
+	Editor.Refresh()
+	App.Spawn(function()
+		while App.Wait(0.75) do
+			-- Drop edits when a rod leaves this player's inventory (including respawn).
+			for object, records in pairs(Editor.edits) do
+				for name,entry in pairs(records) do
+					if not owned(entry.rod) then restore(entry); records[name]=nil end
+				end
+				if next(records)==nil then Editor.edits[object]=nil end
+			end
+			if RodEditorPage.Visible then Editor.Refresh() end
+		end
+	end)
+end
 
 function App.RefreshConfig()
 	BiteDelayBox.Text = State.Config.BiteDelay

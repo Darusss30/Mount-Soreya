@@ -159,6 +159,8 @@ function methods:IsDescendantOf(ancestor)
 	return false
 end
 function methods:GetAttribute(name) return self.attributes[name] end
+function methods:GetAttributes() return table.clone(self.attributes) end
+function methods:SetAttribute(name,value) self.attributes[name]=value end
 function methods:GetPropertyChangedSignal(name)
 	if not self.propertySignals[name] then self.propertySignals[name] = Signal() end
 	return self.propertySignals[name]
@@ -264,6 +266,10 @@ local function rodFor(model, fastBite)
 	local settings=Instance.new("Folder",mechanics); settings.Name="Settings"
 	local delay=Instance.new("NumberValue",settings); delay.Name="Time_before_getfish"; delay.Value=2
 	local mini=Instance.new("BoolValue",settings); mini.Name="EnableMiniGame"; mini.Value=true
+	local luck=Instance.new("NumberValue",settings); luck.Name="Luck"; luck.Value=1
+	local weight=Instance.new("IntValue",settings); weight.Name="MaxWeight"; weight.Value=10
+	rod:SetAttribute("LuckMultiplier",2)
+	rod:SetAttribute("Description","Example rod")
 	local remotes=Instance.new("Folder",mechanics); remotes.Name="Remotes"
 	notify=Instance.new("RemoteEvent",remotes); notify.Name="NotifyClient"
 	local currentNotify=notify
@@ -465,8 +471,110 @@ step(0.4); float.MouseButton1Click:Fire(); step(0)
 check(not newMain.Visible,"normal float click toggles main")
 float.MouseButton1Click:Fire(); step(0)
 
+-- Rod editor uses only owned tools and existing numeric fields/attributes.
+click("Rod & Value")
+local editorPage=findText("ROD & VALUE","TextLabel").Parent
+check(editorPage.Visible,"rod editor tab opens")
+local sword=Instance.new("Tool",backpack); sword.Name="Sword"
+local templateRod=Instance.new("Tool",workspace); templateRod.Name="Template Rod"
+click("Refresh Daftar Rod",editorPage)
+local rodButtons={}
+for _,object in ipairs(editorPage:GetDescendants()) do
+	if object:IsA("TextButton") and object.Text:find("Withering Rod #",1,true) then table.insert(rodButtons,object) end
+end
+check(#rodButtons>=2 and rodButtons[1].Text~=rodButtons[2].Text,"duplicate rod names have distinct IDs")
+local forbidden=false
+for _,object in ipairs(editorPage:GetDescendants()) do
+	if object:IsA("TextButton") and (object.Text:find("Sword #",1,true) or object.Text:find("Template Rod #",1,true)) then forbidden=true end
+end
+check(not forbidden,"non-rods and unowned templates excluded")
+click("[Dipakai]",editorPage)
+check(findText("Luck [NumberValue]","TextButton",editorPage)~=nil,"numeric value discovered")
+check(findText("@LuckMultiplier [Attribute]","TextButton",editorPage)~=nil,"numeric attribute discovered")
+local nonNumeric=false
+for _,object in ipairs(editorPage:GetDescendants()) do
+	if object:IsA("TextButton") and (object.Text:find("EnableMiniGame [",1,true) or object.Text:find("@Description",1,true)) then nonNumeric=true end
+end
+check(not nonNumeric,"boolean and string fields omitted")
+
+local luck=rod.Mechanics.Settings.Luck
+local weight=rod.Mechanics.Settings.MaxWeight
+click("Luck [NumberValue]",editorPage)
+fill("Nilai baru","25"); click("Terapkan Value Lokal",editorPage)
+check(luck.Value==25,"NumberValue edited")
+fill("Nilai baru","40"); click("Terapkan Value Lokal",editorPage)
+click("Reset Value Terpilih",editorPage)
+check(luck.Value==1,"repeated edit preserves original value for reset")
+fill("Nilai baru","abc"); click("Terapkan Value Lokal",editorPage)
+check(luck.Value==1 and findText("Masukkan angka valid","TextLabel",editorPage),"invalid numeric input rejected")
+fill("Nilai baru","1e309"); click("Terapkan Value Lokal",editorPage)
+check(luck.Value==1,"infinite input rejected")
+click("MaxWeight [IntValue]",editorPage)
+fill("Nilai baru","2.5"); click("Terapkan Value Lokal",editorPage)
+check(weight.Value==10,"fractional IntValue rejected")
+fill("Nilai baru","9007199254740992"); click("Terapkan Value Lokal",editorPage)
+check(weight.Value==10,"integer outside exact precision rejected")
+fill("Nilai baru","75"); click("Terapkan Value Lokal",editorPage)
+check(weight.Value==75,"IntValue edited")
+click("@LuckMultiplier [Attribute]",editorPage)
+fill("Nilai baru","4.5"); click("Terapkan Value Lokal",editorPage)
+check(rod:GetAttribute("LuckMultiplier")==4.5,"numeric attribute edited")
+click("Reset Semua Value Rod",editorPage)
+check(weight.Value==10 and rod:GetAttribute("LuckMultiplier")==2,"reset all restores values and attributes")
+
+click("Luck [NumberValue]",editorPage)
+fill("Nilai baru","25"); click("Terapkan Value Lokal",editorPage)
+luck.Value=777
+step(0.8)
+check(luck.Value==777 and findText("Saat ini: 777","TextLabel",editorPage),"external update displayed without fighting it")
+click("Reset Value Terpilih",editorPage)
+check(luck.Value==1,"reset after external update restores pre-edit value")
+local settings=luck.Parent
+luck.Parent=nil
+fill("Nilai baru","50"); click("Terapkan Value Lokal",editorPage)
+check(luck.Value==1,"stale removed value cannot be edited")
+luck.Parent=settings
+click("Refresh Daftar Rod",editorPage)
+click("Luck [NumberValue]",editorPage)
+rod.Parent=backpack
+click("Refresh Daftar Rod",editorPage)
+fill("Nilai baru","33"); click("Terapkan Value Lokal",editorPage)
+check(luck.Value==33,"selection survives equip to backpack transfer")
+rod.Parent=workspace
+fill("Nilai baru","66"); click("Terapkan Value Lokal",editorPage)
+step(0.8)
+check(luck.Value==1,"unowned rod rejects edits and restores previous edit")
+rod.Parent=player.Character
+click("Refresh Daftar Rod",editorPage); click("[Dipakai]",editorPage)
+
+-- Manual delay edits own that setting until reset; Auto Fishing cannot clobber it.
+click("Smart Auto Fishing (Di Tempat Saja)"); step(0.3)
+check(rodDelay.Value==0.05,"auto optimizer active before manual edit")
+click("Time_before_getfish [NumberValue]",editorPage)
+fill("Nilai baru","3"); click("Terapkan Value Lokal",editorPage)
+step(1.5)
+check(rodDelay.Value==3,"manual value overrides automatic optimizer")
+click("Smart Auto Fishing (Di Tempat Saja)"); step(0.2)
+check(rodDelay.Value==3,"fishing OFF preserves explicitly edited value")
+click("Reset Value Terpilih",editorPage)
+check(rodDelay.Value==2,"editor reset restores pre-optimization original")
+
+local emptyRod=Instance.new("Tool",backpack); emptyRod.Name="Empty Rod"
+click("Refresh Daftar Rod",editorPage); click("Empty Rod #",editorPage)
+check(findText("Tidak ada value angka","TextLabel",editorPage)~=nil,"rod without exposed values shows empty state")
+click("[Dipakai]",editorPage)
+click("Luck [NumberValue]",editorPage)
+fill("Nilai baru","99"); click("Terapkan Value Lokal",editorPage)
+click("@LuckMultiplier [Attribute]",editorPage)
+fill("Nilai baru","8"); click("Terapkan Value Lokal",editorPage)
+click("Refresh Daftar Rod",editorPage)
+local editorConnections=connectionCount()
+for _=1,5 do click("Refresh Daftar Rod",editorPage) end
+check(connectionCount()==editorConnections,"refresh does not accumulate handlers")
+
 click("×"); step(1)
 check(playerGui:FindFirstChild("DarusHub")==nil,"close destroys UI")
 check(connectionCount()==0,"close removes every registered connection")
 check(next(scheduled)==nil,"close cancels workers and requests")
+check(luck.Value==1 and rod:GetAttribute("LuckMultiplier")==2,"close restores all rod edits")
 print("PASS: " .. passed .. " UBEYHUB-based Darus Hub regression checks (mock runtime)")

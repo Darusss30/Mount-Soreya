@@ -8,6 +8,7 @@ Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabas
 ## Fitur
 
 - Fishing & Sell: dua mode pancing yang saling eksklusif, pilihan spot, rotasi spot, jeda gigitan, dan timer jual ke NPC.
+- Rod & Value: daftar rod milik pemain, pemeriksaan nilai angka, editor lokal, dan reset.
 - Favorite: filter rarity/mutasi, auto favorite, serta unfavorite berdasarkan filter atau seluruh ikan.
 - Galatama dan perpindahan berdasarkan perkiraan jadwal Core.
 - Teleport shop/NPC dan pemain.
@@ -49,12 +50,29 @@ Jika versi sumber lama sudah berjalan tanpa mekanisme cleanup, masuk ulang ke ga
 Tidak ada fitur yang menjamin ikan atau mutasi tertentu dalam sekali pancing.
 Keputusan hasil ikan tetap berada di server game; repositori ini tidak memuat kode server tersebut.
 
+## Rod & Value
+
+1. Buka menu **Rod & Value**. Rod di Backpack dan karakter ditampilkan dengan status **Tas** atau **Dipakai**. Nama yang sama dibedakan dengan nomor sesi.
+2. Pilih rod, lalu pilih value dari daftar. Editor membaca `NumberValue`, `IntValue`, dan atribut angka pada rod beserta turunannya. Nilai `Luck` hanya muncul jika memang tersedia pada rod tersebut.
+3. Masukkan angka dan tekan **Terapkan Value Lokal**. Input yang bukan angka atau tak hingga ditolak; `IntValue` memerlukan bilangan bulat dalam rentang presisi Luau.
+4. Gunakan **Reset Value Terpilih** atau **Reset Semua Value Rod** untuk mengembalikan nilai sebelum edit. Menutup hub, menjalankan ulang, atau kehilangan rod dari inventaris juga memulihkan perubahan sesi.
+
+Daftar diperbarui saat halaman terbuka; tombol **Refresh Daftar Rod** tersedia untuk pemindaian manual.
+Perpindahan rod antara tas dan karakter mempertahankan pilihan. Nilai yang dihapus game tidak dibuat ulang.
+Edit manual pada jeda rod tidak ditimpa optimasi Auto Fishing; setelah reset, optimasi otomatis dapat berjalan kembali.
+Editor tidak menyimpan perubahan value ke file dan tidak membuat nilai luck/server yang tidak tersedia.
+Perubahan hanya lokal, dapat diabaikan atau ditimpa server, serta tidak menjamin pengaruh terhadap hasil tangkapan.
+Jika konfigurasi pancing hanya berada dalam kode/server, halaman akan menjelaskan bahwa tidak ada value angka yang tersedia.
+
 ## Validasi
 
-Kompilasi Luau dan **60 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **87 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
+Editor rod diuji untuk daftar inventaris, nama ganda, NumberValue/IntValue/atribut,
+input invalid, nilai yang dihapus, perpindahan rod, perubahan dari luar editor,
+reset, pembersihan handler, dan interaksi dengan optimasi pancing.
 Pengujian tidak mengirim pesan atau permintaan ke server game/Discord nyata.
 
 Jalankan dengan binari dari [rilis resmi Luau](https://github.com/luau-lang/luau/releases):
