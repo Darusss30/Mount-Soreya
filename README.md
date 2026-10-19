@@ -8,7 +8,6 @@ Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabas
 ## Fitur
 
 - Fishing & Sell: dua mode pancing yang saling eksklusif, pilihan spot, rotasi spot, jeda gigitan, dan timer jual ke NPC.
-- Rod & Value: daftar rod milik pemain, pemeriksaan nilai angka, editor lokal, dan reset.
 - Target & Statistik: pemantau ikan/mutasi, penghentian otomatis saat target tertangkap, perlindungan auto sell, dan statistik sesi.
 - Favorite: filter rarity/mutasi, auto favorite, serta unfavorite berdasarkan filter atau seluruh ikan.
 - Galatama dan perpindahan berdasarkan perkiraan jadwal Core.
@@ -51,23 +50,9 @@ Jika versi sumber lama sudah berjalan tanpa mekanisme cleanup, masuk ulang ke ga
 Tidak ada fitur yang menjamin ikan atau mutasi tertentu dalam sekali pancing.
 Keputusan hasil ikan tetap berada di server game; repositori ini tidak memuat kode server tersebut.
 
-## Rod & Value
-
-1. Buka menu **Rod & Value**. Rod di Backpack dan karakter ditampilkan dengan status **Tas** atau **Dipakai**. Nama yang sama dibedakan dengan nomor sesi.
-2. Pilih rod, lalu pilih value dari daftar. Editor membaca `NumberValue`, `IntValue`, dan atribut angka pada rod beserta turunannya. Nilai `Luck` hanya muncul jika memang tersedia pada rod tersebut.
-3. Masukkan angka dan tekan **Terapkan Value Lokal**. Input yang bukan angka atau tak hingga ditolak; `IntValue` memerlukan bilangan bulat dalam rentang presisi Luau.
-4. Gunakan **Reset Value Terpilih** atau **Reset Semua Value Rod** untuk mengembalikan nilai sebelum edit. Menutup hub, menjalankan ulang, atau kehilangan rod dari inventaris juga memulihkan perubahan sesi.
-
-Daftar diperbarui saat halaman terbuka; tombol **Refresh Daftar Rod** tersedia untuk pemindaian manual.
-Perpindahan rod antara tas dan karakter mempertahankan pilihan. Nilai yang dihapus game tidak dibuat ulang.
-Edit manual pada jeda rod tidak ditimpa optimasi Auto Fishing; setelah reset, optimasi otomatis dapat berjalan kembali.
-Editor tidak menyimpan perubahan value ke file dan tidak membuat nilai luck/server yang tidak tersedia.
-Perubahan hanya lokal, dapat diabaikan atau ditimpa server, serta tidak menjamin pengaruh terhadap hasil tangkapan.
-Jika konfigurasi pancing hanya berada dalam kode/server, halaman akan menjelaskan bahwa tidak ada value angka yang tersedia.
-
 ## Target & Statistik
 
-Buka **Target & Statistik**, di bawah **Rod & Value** pada sidebar (gulir bila perlu).
+Buka **Target & Statistik**, di bawah **Credits** pada sidebar (gulir bila perlu).
 
 1. Isi nama ikan dan/atau mutasi target, lalu aktifkan **Pantau Target dan Stop Otomatis**.
    Keduanya dicocokkan persis tanpa membedakan huruf besar/kecil. Kolom kosong berarti bebas;
@@ -92,8 +77,15 @@ di server. Perubahan server setelah pemeriksaan, penjualan manual di luar hub, d
 permintaan jual yang sudah dikirim tidak dapat dibatalkan oleh pelindung ini.
 
 Statistik menampilkan jumlah tangkapan, durasi sesi, rata-rata tangkapan per menit,
-jumlah Secret/Forgotten, tangkapan terakhir, dan ikan dengan kategori rarity tertinggi.
-Urutan kategori bukan perbandingan peluang numerik. Angka hanya berasal dari notifikasi
+jumlah Secret/Forgotten, tangkapan terakhir, dan **ikan terlangka berdasarkan peluang**.
+Untuk peluang **1 dari N**, penyebut N yang lebih besar berarti lebih langka:
+**1 dari 20M mengalahkan 1 dari 950K**, termasuk jika keduanya Secret.
+Peringkat membaca field `chance`/`Chance` dari notifikasi game, mendukung angka penyebut,
+format `1 in N`, `1 dari N`, `1/N`, `1:N`, pemisah ribuan, serta akhiran K/M/B.
+Contoh: `950K`, `20M`, `20.5M`, `20,5M`, `20.000.000`, dan `20,000,000`.
+Data peluang yang hilang/tidak terbaca tidak menggantikan rekor yang valid; tangkapannya
+tetap dihitung. Kategori Secret/Forgotten tidak dipakai sebagai pengganti angka peluang.
+Angka hanya berasal dari notifikasi
 `GotFish` yang diterima sejak sesi/reset, bukan seluruh inventaris atau jaminan peluang.
 Duplikasi notifikasi dengan `uid`/`UUID` yang sama disaring untuk 1.000 ID terakhir;
 tanpa ID dari game, notifikasi ganda tidak dapat dibedakan secara andal.
@@ -101,13 +93,12 @@ tanpa ID dari game, notifikasi ganda tidak dapat dibedakan secara andal.
 
 ## Validasi
 
-Kompilasi Luau dan **121 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **109 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
-Editor rod diuji untuk daftar inventaris, nama ganda, NumberValue/IntValue/atribut,
-input invalid, nilai yang dihapus, perpindahan rod, perubahan dari luar editor,
-reset, pembersihan handler, dan interaksi dengan optimasi pancing.
+Penghapusan menu editor rod serta peringkat peluang diuji, termasuk 950K vs 20M
+dalam kategori Secret yang sama, format angka, nilai invalid, seri, dan reset.
 Target/statistik diuji untuk kecocokan literal, kombinasi nama/mutasi, duplikasi ID,
 reset, penyimpanan dan pemuatan ulang. Pelindung jual diuji untuk favorit, target,
 filter nama/mutasi/rarity, inventaris gagal/tidak lengkap, tangkapan baru saat

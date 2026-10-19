@@ -431,9 +431,9 @@ notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="test fish"}); step(0
 check(findText("Tangkapan: 0","TextLabel",catchPage)~=nil,"stats reset preserves deduplication")
 fill("Nama ikan target",""); fill("Mutasi target","Gold")
 click("Smart Auto Fishing + Teleport")
-notify.OnClientEvent:Fire("GotFish",{uid="catch3",baseName="Any Fish",rarity="Forgotten",mutation="Gold"}); step(0)
+notify.OnClientEvent:Fire("GotFish",{uid="catch3",baseName="Any Fish",rarity="Forgotten",mutation="Gold",chance="1 in 200M"}); step(0)
 check(findText("Smart Auto Fishing + Teleport","TextButton").Text:find("[OFF]",1,true),"mutation-only target stops teleport fishing")
-check(findText("Rarity tertinggi: Any Fish | Gold | Forgotten","TextLabel",catchPage)~=nil,"highest known rarity displayed")
+check(findText("Ikan terlangka: Any Fish | Gold | Forgotten | 1 dari 200000000","TextLabel",catchPage)~=nil,"reported catch odds displayed")
 click("Pantau Target dan Stop Otomatis")
 fill("Nama ikan target","Test Fish"); fill("Mutasi target","8-Bit")
 fill("Nama ikan dilindungi","Keep Fish, Another Fish")
@@ -558,110 +558,47 @@ step(0.4); float.MouseButton1Click:Fire(); step(0)
 check(not newMain.Visible,"normal float click toggles main")
 float.MouseButton1Click:Fire(); step(0)
 
--- Rod editor uses only owned tools and existing numeric fields/attributes.
-click("Rod & Value")
-local editorPage=findText("ROD & VALUE","TextLabel").Parent
-check(editorPage.Visible,"rod editor tab opens")
-local sword=Instance.new("Tool",backpack); sword.Name="Sword"
-local templateRod=Instance.new("Tool",workspace); templateRod.Name="Template Rod"
-click("Refresh Daftar Rod",editorPage)
-local rodButtons={}
-for _,object in ipairs(editorPage:GetDescendants()) do
-	if object:IsA("TextButton") and object.Text:find("Withering Rod #",1,true) then table.insert(rodButtons,object) end
+-- Removed rod editor must not leave its menu behind.
+local hasRodEditor=false
+for _,object in ipairs(playerGui:GetDescendants()) do
+    if object:IsA("TextButton") and object.Text=="Rod & Value" then hasRodEditor=true end
 end
-check(#rodButtons>=2 and rodButtons[1].Text~=rodButtons[2].Text,"duplicate rod names have distinct IDs")
-local forbidden=false
-for _,object in ipairs(editorPage:GetDescendants()) do
-	if object:IsA("TextButton") and (object.Text:find("Sword #",1,true) or object.Text:find("Template Rod #",1,true)) then forbidden=true end
+check(not hasRodEditor,"rod editor removed")
+
+click("Target & Statistik")
+local oddsPage=findText("TARGET IKAN & STATISTIK SESI","TextLabel").Parent
+click("Reset Statistik Sesi")
+local function catchOdds(name, chance, rarity)
+	notify.OnClientEvent:Fire("GotFish", {baseName=name, chance=chance, rarity=rarity or "Secret", mutation="Normal"})
+	step(0)
 end
-check(not forbidden,"non-rods and unowned templates excluded")
-click("[Dipakai]",editorPage)
-check(findText("Luck [NumberValue]","TextButton",editorPage)~=nil,"numeric value discovered")
-check(findText("@LuckMultiplier [Attribute]","TextButton",editorPage)~=nil,"numeric attribute discovered")
-local nonNumeric=false
-for _,object in ipairs(editorPage:GetDescendants()) do
-	if object:IsA("TextButton") and (object.Text:find("EnableMiniGame [",1,true) or object.Text:find("@Description",1,true)) then nonNumeric=true end
+catchOdds("No Odds",nil,"Forgotten")
+check(findText("Ikan terlangka: Belum ada data peluang","TextLabel",oddsPage)~=nil,"missing odds do not invent a ranking")
+catchOdds("Great Whale","1 in 950K")
+check(findText("Ikan terlangka: Great Whale | Normal | Secret | 1 dari 950000","TextLabel",oddsPage)~=nil,"950K denominator parsed")
+catchOdds("Rare Secret","1 dari 20M")
+check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20000000","TextLabel",oddsPage)~=nil,"20M beats 950K within same Secret category")
+catchOdds("Great Whale Again",950000)
+catchOdds("Higher Category","1/1000000","Forgotten")
+check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20000000","TextLabel",oddsPage)~=nil,"commoner odds cannot replace best even with higher category")
+for _,case in ipairs({
+	{"1/200,000,000",200000000}, {"1 dari 250.000.000",250000000},
+	{"300.5M",300500000}, {"350,5M",350500000},
+	{400000000,400000000}, {"1 : 500 000 000",500000000}, {"1B",1000000000},
+}) do
+	catchOdds("Format " .. tostring(case[2]),case[1])
+	check(findText("Ikan terlangka: Format " .. tostring(case[2]) .. " | Normal | Secret | 1 dari " .. tostring(case[2]),"TextLabel",oddsPage)~=nil,"supported denominator format: " .. tostring(case[1]))
 end
-check(not nonNumeric,"boolean and string fields omitted")
-
-local luck=rod.Mechanics.Settings.Luck
-local weight=rod.Mechanics.Settings.MaxWeight
-click("Luck [NumberValue]",editorPage)
-fill("Nilai baru","25"); click("Terapkan Value Lokal",editorPage)
-check(luck.Value==25,"NumberValue edited")
-fill("Nilai baru","40"); click("Terapkan Value Lokal",editorPage)
-click("Reset Value Terpilih",editorPage)
-check(luck.Value==1,"repeated edit preserves original value for reset")
-fill("Nilai baru","abc"); click("Terapkan Value Lokal",editorPage)
-check(luck.Value==1 and findText("Masukkan angka valid","TextLabel",editorPage),"invalid numeric input rejected")
-fill("Nilai baru","1e309"); click("Terapkan Value Lokal",editorPage)
-check(luck.Value==1,"infinite input rejected")
-click("MaxWeight [IntValue]",editorPage)
-fill("Nilai baru","2.5"); click("Terapkan Value Lokal",editorPage)
-check(weight.Value==10,"fractional IntValue rejected")
-fill("Nilai baru","9007199254740992"); click("Terapkan Value Lokal",editorPage)
-check(weight.Value==10,"integer outside exact precision rejected")
-fill("Nilai baru","75"); click("Terapkan Value Lokal",editorPage)
-check(weight.Value==75,"IntValue edited")
-click("@LuckMultiplier [Attribute]",editorPage)
-fill("Nilai baru","4.5"); click("Terapkan Value Lokal",editorPage)
-check(rod:GetAttribute("LuckMultiplier")==4.5,"numeric attribute edited")
-click("Reset Semua Value Rod",editorPage)
-check(weight.Value==10 and rod:GetAttribute("LuckMultiplier")==2,"reset all restores values and attributes")
-
-click("Luck [NumberValue]",editorPage)
-fill("Nilai baru","25"); click("Terapkan Value Lokal",editorPage)
-luck.Value=777
-step(0.8)
-check(luck.Value==777 and findText("Saat ini: 777","TextLabel",editorPage),"external update displayed without fighting it")
-click("Reset Value Terpilih",editorPage)
-check(luck.Value==1,"reset after external update restores pre-edit value")
-local settings=luck.Parent
-luck.Parent=nil
-fill("Nilai baru","50"); click("Terapkan Value Lokal",editorPage)
-check(luck.Value==1,"stale removed value cannot be edited")
-luck.Parent=settings
-click("Refresh Daftar Rod",editorPage)
-click("Luck [NumberValue]",editorPage)
-rod.Parent=backpack
-click("Refresh Daftar Rod",editorPage)
-fill("Nilai baru","33"); click("Terapkan Value Lokal",editorPage)
-check(luck.Value==33,"selection survives equip to backpack transfer")
-rod.Parent=workspace
-fill("Nilai baru","66"); click("Terapkan Value Lokal",editorPage)
-step(0.8)
-check(luck.Value==1,"unowned rod rejects edits and restores previous edit")
-rod.Parent=player.Character
-click("Refresh Daftar Rod",editorPage); click("[Dipakai]",editorPage)
-
--- Manual delay edits own that setting until reset; Auto Fishing cannot clobber it.
-click("Smart Auto Fishing (Di Tempat Saja)"); step(0.3)
-check(rodDelay.Value==0.05,"auto optimizer active before manual edit")
-click("Time_before_getfish [NumberValue]",editorPage)
-fill("Nilai baru","3"); click("Terapkan Value Lokal",editorPage)
-step(1.5)
-check(rodDelay.Value==3,"manual value overrides automatic optimizer")
-click("Smart Auto Fishing (Di Tempat Saja)"); step(0.2)
-check(rodDelay.Value==3,"fishing OFF preserves explicitly edited value")
-click("Reset Value Terpilih",editorPage)
-check(rodDelay.Value==2,"editor reset restores pre-optimization original")
-
-local emptyRod=Instance.new("Tool",backpack); emptyRod.Name="Empty Rod"
-click("Refresh Daftar Rod",editorPage); click("Empty Rod #",editorPage)
-check(findText("Tidak ada value angka","TextLabel",editorPage)~=nil,"rod without exposed values shows empty state")
-click("[Dipakai]",editorPage)
-click("Luck [NumberValue]",editorPage)
-fill("Nilai baru","99"); click("Terapkan Value Lokal",editorPage)
-click("@LuckMultiplier [Attribute]",editorPage)
-fill("Nilai baru","8"); click("Terapkan Value Lokal",editorPage)
-click("Refresh Daftar Rod",editorPage)
-local editorConnections=connectionCount()
-for _=1,5 do click("Refresh Daftar Rod",editorPage) end
-check(connectionCount()==editorConnections,"refresh does not accumulate handlers")
+for _,value in ipairs({"N/A","20M garbage","1/0",-10,0.01,math.huge,0/0,"1 in 1e999","12,34,567"}) do catchOdds("Invalid",value,"Forgotten") end
+catchOdds("Missing",nil,"Forgotten")
+catchOdds("Tie","1 in 1B")
+check(findText("Ikan terlangka: Format 1000000000 | Normal | Secret | 1 dari 1000000000","TextLabel",oddsPage)~=nil,"invalid missing and tied odds preserve best catch")
+check(findText("Tangkapan: 23","TextLabel",oddsPage)~=nil,"unknown odds still count as catches")
+click("Reset Statistik Sesi")
+check(findText("Ikan terlangka: Belum ada data peluang","TextLabel",oddsPage)~=nil,"reset clears best odds")
 
 click("×"); step(1)
 check(playerGui:FindFirstChild("DarusHub")==nil,"close destroys UI")
 check(connectionCount()==0,"close removes every registered connection")
 check(next(scheduled)==nil,"close cancels workers and requests")
-check(luck.Value==1 and rod:GetAttribute("LuckMultiplier")==2,"close restores all rod edits")
 print("PASS: " .. passed .. " UBEYHUB-based Darus Hub regression checks (mock runtime)")
