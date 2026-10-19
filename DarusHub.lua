@@ -282,6 +282,7 @@ App.catchRevision = 0
 App.seenCatchIds, App.catchIdOrder = {}, {}
 function App.ResetCatchStats()
 	App.catchStats = {started = os.clock(), total = 0, byRarity = {}, bestChance = 0, best = "Belum ada data peluang", last = "-"}
+	App.pendingCatchOdds = {}
 end
 App.ResetCatchStats()
 
@@ -339,6 +340,127 @@ function App.ChanceDenominator(value)
 	return number
 end
 
+function App.SetCatchOdds(record, chance, source)
+	if record.stats ~= App.catchStats then return end
+	record.chance = chance
+	record.description = record.fish.Name .. " | " .. record.fish.Mutation .. " | " .. record.fish.Rarity
+		.. (chance and (" | 1 dari " .. string.format("%.15g", chance) .. (source == "popup" and " (tampilan game)" or "")) or " | menunggu data peluang")
+	local stats = record.stats
+	if stats.lastRecord == record then stats.last = record.description end
+	if chance and chance > stats.bestChance then stats.bestChance, stats.best = chance, record.description end
+	if App.RefreshCatchStats then App.RefreshCatchStats() end
+end
+
+-- The game's catch popup can contain odds that GotFish does not send.
+-- Read only visible game UI, and pair a fresh, unambiguous popup with its catch.
+do
+	local snapshots = setmetatable({}, {__mode = "k"})
+	local consumed = setmetatable({}, {__mode = "k"})
+	local function plain(value)
+		return App.CleanText(value):gsub("<[^>]*>", ""):gsub("%s+", " "):lower()
+	end
+	local function visible(object)
+		while object and object ~= PlayerGui do
+			if object == Gui then return false end
+			if object:IsA("GuiObject") and not object.Visible then return false end
+			if object:IsA("ScreenGui") and not object.Enabled then return false end
+			object = object.Parent
+		end
+		return object == PlayerGui
+	end
+	local function popupTitle(text)
+		local title, weight = text:match("^(.-)%s*%(([%d%.,]+)%s*kg%)$")
+		return title and App.CleanText(title), weight and tonumber((weight:gsub(",", ".")))
+	end
+	local function matches(record, title, weight)
+		local name, mutation = plain(record.fish.Name), plain(record.fish.Mutation)
+		if title ~= name and title:sub(-#name - 1) ~= " " .. name then return false end
+		if mutation ~= "normal" and title:sub(1, #mutation + 1) ~= mutation .. " " then return false end
+		if record.weight and (not weight or math.abs(record.weight - weight) > 0.015) then return false end
+		return true
+	end
+	local function sample(initial)
+		local labels = {}
+		for _, root in ipairs(PlayerGui:GetChildren()) do
+			if root ~= Gui then
+				for _, item in ipairs(root:GetDescendants()) do
+					if item:IsA("TextLabel") or item:IsA("TextButton") then
+						local text, shown = plain(item.Text), visible(item)
+						local old = snapshots[item]
+						if not old or old.text ~= text or old.visible ~= shown then
+							snapshots[item] = {text = text, visible = shown, changed = initial and -math.huge or os.clock()}
+						end
+						if shown then table.insert(labels, item) end
+					end
+				end
+			end
+		end
+		return labels
+	end
+	local function resolve(labels)
+		for _, titleLabel in ipairs(labels) do
+			local titleState = snapshots[titleLabel]
+			local title, weight = popupTitle(titleState.text)
+			if not title then continue end
+			local parent = titleLabel.Parent
+			for _ = 1, 3 do
+				if not parent or parent == PlayerGui then break end
+				local children = parent:GetDescendants()
+				if #children > 40 then break end
+				local oddsLabel, odds, titleCount, oddsCount = nil, nil, 0, 0
+				for _, item in ipairs(children) do
+					local state = snapshots[item]
+					if state and state.visible then
+						if popupTitle(state.text) then titleCount += 1 end
+						if state.text:match("^1%s+in%s+") or state.text:match("^1%s+dari%s+") or state.text:match("^1%s*[/:]") then
+							local value = App.ChanceDenominator(state.text)
+							if value then oddsLabel, odds = item, value; oddsCount += 1 end
+						end
+					end
+				end
+				if oddsCount > 0 then
+					if oddsCount == 1 and titleCount == 1 then
+						local changed = math.max(titleState.changed, snapshots[oddsLabel].changed)
+						local signature = titleState.text .. "|" .. snapshots[oddsLabel].text .. "|" .. tostring(changed)
+						if consumed[titleLabel] ~= signature and os.clock() - changed >= 0.2 then
+							local match, count = nil, 0
+							for _, record in ipairs(App.pendingCatchOdds) do
+								if titleState.changed >= record.at - 0.3 and snapshots[oddsLabel].changed >= record.at - 0.3
+									and changed <= record.at + 3
+									and matches(record, title, weight) then match = record; count += 1 end
+							end
+							if count == 1 then
+								consumed[titleLabel] = signature
+								if not match.chance and not match.resolved then App.SetCatchOdds(match, odds, "popup") end
+								match.resolved = true
+							end
+						end
+					end
+					break
+				end
+				parent = parent.Parent
+			end
+		end
+	end
+	sample(true)
+	App.Spawn(function()
+		while App.Wait(0.1) do
+			local labels = sample(false)
+			resolve(labels)
+			for index = #App.pendingCatchOdds, 1, -1 do
+				local record = App.pendingCatchOdds[index]
+				if os.clock() - record.at > 3.5 then
+					if not record.chance and record.stats == App.catchStats and record.stats.lastRecord == record then
+						record.stats.last = record.description:gsub("menunggu data peluang$", "peluang belum terbaca")
+						if App.RefreshCatchStats then App.RefreshCatchStats() end
+					end
+					table.remove(App.pendingCatchOdds, index)
+				end
+			end
+		end
+	end)
+end
+
 function App.RecordCatch(data)
 	local name = App.CleanText(data.baseName or data.originalName or data.nama or data.Name)
 	if name == "" then return false end
@@ -360,9 +482,11 @@ function App.RecordCatch(data)
 	stats.total += 1
 	local rarity = fish.Rarity:lower()
 	stats.byRarity[rarity] = (stats.byRarity[rarity] or 0) + 1
-	stats.last = fish.Name .. " | " .. fish.Mutation .. " | " .. fish.Rarity
-		.. (chance and (" | 1 dari " .. string.format("%.15g", chance)) or " | peluang tidak tersedia")
-	if chance and chance > stats.bestChance then stats.bestChance, stats.best = chance, stats.last end
+	local record = {fish = fish, stats = stats, at = os.clock(), weight = tonumber(data.weight or data.Weight)}
+	stats.lastRecord = record
+	App.SetCatchOdds(record, chance, "event")
+	table.insert(App.pendingCatchOdds, record)
+	if #App.pendingCatchOdds > 50 then table.remove(App.pendingCatchOdds, 1) end
 	if State.TargetTracking and App.TargetMatches(fish) then
 		App.toggles["Smart Auto Fishing + Teleport"]:Set(false)
 		App.toggles["Smart Auto Fishing (Di Tempat Saja)"]:Set(false)

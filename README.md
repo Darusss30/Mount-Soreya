@@ -85,6 +85,21 @@ format `1 in N`, `1 dari N`, `1/N`, `1:N`, pemisah ribuan, serta akhiran K/M/B.
 Contoh: `950K`, `20M`, `20.5M`, `20,5M`, `20.000.000`, dan `20,000,000`.
 Data peluang yang hilang/tidak terbaca tidak menggantikan rekor yang valid; tangkapannya
 tetap dihitung. Kategori Secret/Forgotten tidak dipakai sebagai pengganti angka peluang.
+Jika event tidak menyertakan peluang yang terbaca, hub menunggu popup tangkapan game
+selama sekitar tiga detik. Popup dicocokkan dengan nama, mutasi, dan berat jika berat
+tersedia di event. Contoh `Stone Big Manta Ray (157.97kg)` dengan `1 in 50.0K`
+akan terbaca sebagai `1 dari 50000 (tampilan game)`; angka ini mengikuti tampilan
+game dan mungkin sudah dibulatkan. Teks RichText didukung. Peluang dari event tetap
+diutamakan jika tersedia.
+
+Pembacaan popup hanya menerima judul berakhiran `(berat kg)` dan satu label peluang
+yang baru diperbarui dalam kelompok UI kecil yang sama. Popup tersembunyi, teks hub,
+popup lama, nama/berat/mutasi berbeda, atau beberapa tangkapan yang ambigu diabaikan.
+Pembacaan terlambat memperbarui rekor tanpa menambah hitungan tangkapan atau menimpa
+informasi ikan terakhir yang lebih baru. Jika susunan popup game tidak cocok, status
+berubah dari `menunggu data peluang` menjadi `peluang belum terbaca`; hub tidak
+menebak peluangnya. Dukungan susunan UI game asli masih perlu diuji di Roblox.
+
 Angka hanya berasal dari notifikasi
 `GotFish` yang diterima sejak sesi/reset, bukan seluruh inventaris atau jaminan peluang.
 Duplikasi notifikasi dengan `uid`/`UUID` yang sama disaring untuk 1.000 ID terakhir;
@@ -93,12 +108,15 @@ tanpa ID dari game, notifikasi ganda tidak dapat dibedakan secara andal.
 
 ## Validasi
 
-Kompilasi Luau dan **109 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **123 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
 Penghapusan menu editor rod serta peringkat peluang diuji, termasuk 950K vs 20M
 dalam kategori Secret yang sama, format angka, nilai invalid, seri, dan reset.
+Fallback popup diuji menggunakan teks pada laporan pengguna, RichText, prioritas
+event, kecocokan identitas, popup lama/tersembunyi, pembaruan judul dan peluang
+yang terpisah, tangkapan ambigu, timeout, reset, dan hitungan yang tidak bertambah ganda.
 Target/statistik diuji untuk kecocokan literal, kombinasi nama/mutasi, duplikasi ID,
 reset, penyimpanan dan pemuatan ulang. Pelindung jual diuji untuk favorit, target,
 filter nama/mutasi/rarity, inventaris gagal/tidak lengkap, tangkapan baru saat
