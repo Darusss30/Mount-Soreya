@@ -47,6 +47,9 @@ Webhook opsional memerlukan fungsi HTTP request yang kompatibel dan URL yang And
 Gunakan tombol X untuk mengakhiri sesi. Tombol minus dan tombol DH hanya mengubah tampilan menu.
 **Anti-AFK** dan **Auto Join Galatama** otomatis ON saat hub dibuka atau konfigurasi
 direset. Keduanya tetap dapat dimatikan melalui tombol masing-masing.
+Auto Join menunggu jika `Remote/Galatama/Ikut` belum tersedia. Pemanggilan mengikuti
+tipe objek yang ditemukan: `InvokeServer` untuk RemoteFunction, `FireServer` untuk
+RemoteEvent. Status permintaan tidak berarti server sudah mengonfirmasi keikutsertaan.
 Jika versi sumber lama sudah berjalan tanpa mekanisme cleanup, masuk ulang ke game sekali sebelum memakai versi ini.
 
 Tidak ada fitur yang menjamin ikan atau mutasi tertentu dalam sekali pancing.
@@ -102,6 +105,19 @@ Statistik hanya mencatat event yang diterima sejak sesi/reset. ID ganda disaring
 untuk 1.000 ID terakhir; notifikasi tanpa ID tidak dapat dideduplikasi secara andal.
 **Reset Statistik Sesi** membersihkan hitungan, durasi, rekor, dan riwayat sesi.
 
+### Diagnostik statistik
+
+Jika ikan Secret belum masuk peringkat, tekan **Lihat / Salin Diagnostik Statistik**
+di halaman Statistik setelah tangkapan tersebut. Laporan ditampilkan dalam kotak
+teks dan disalin jika fungsi clipboard tersedia. Tidak ada pengiriman otomatis.
+Laporan memuat status remote Galatama/inventaris, nama dan tipe field event,
+nilai field peluang yang dikenal, 30 tangkapan Secret/Forgotten terakhir (tetap
+tersimpan meski keluar dari riwayat 100 baris), serta 30 perubahan label peluang/berat
+yang terlihat. Nilai field event lain tidak diekspor. Reset statistik menghapusnya.
+Ringkasan juga menampilkan cakupan pembacaan peluang Secret dan Forgotten secara
+terpisah. Data ini diperlukan untuk memastikan penyebab tangkapan tertentu terlewat;
+pengujian simulasi tidak membuktikan seluruh layout game asli sudah terbaca.
+
 ### Pelindung auto sell
 
 Di bawah statistik, isi nama, mutasi, atau rarity yang dilindungi dengan pemisah
@@ -116,7 +132,7 @@ ini tidak membatalkan permintaan jual yang sudah dikirim atau penjualan manual.
 
 ## Validasi
 
-Kompilasi Luau dan **137 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **146 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.

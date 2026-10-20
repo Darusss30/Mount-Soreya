@@ -121,7 +121,7 @@ App.connections[Gui.Destroying:Connect(App.Cleanup)] = true
 -- until it returns; callers must not accumulate duplicate requests.
 function App.Invoke(remote, ...)
 	if not remote or not remote:IsA("RemoteFunction") then
-		App.Report("RemoteFunction tidak tersedia pada game ini.")
+		App.Report("Permintaan gagal: " .. (remote and (remote.Name .. " bertipe " .. remote.ClassName) or "remote belum tersedia") .. "; diperlukan RemoteFunction.")
 		return nil
 	end
 	if App.pending[remote] then App.Report("Permintaan sebelumnya masih menunggu server."); return nil end
@@ -279,10 +279,13 @@ end
 local hookedRemotes = setmetatable({}, {__mode = "k"})
 
 App.catchRevision = 0
+App.remoteStatus = {inventory = "Belum diperiksa", galatama = "Menunggu pemeriksaan"}
+App.popupEvidence = {}
 App.seenCatchIds, App.catchIdOrder = {}, {}
 function App.ResetCatchStats()
-	App.catchStats = {started = os.clock(), total = 0, known = 0, history = {}, ranking = {}, byRarity = {}, bestChance = 0, best = "Belum ada data peluang", last = "-"}
+	App.catchStats = {started = os.clock(), total = 0, known = 0, history = {}, ranking = {}, rareRecords = {}, byRarity = {}, knownRarity = {}, bestChance = 0, best = "Belum ada data peluang", last = "-"}
 	App.pendingCatchOdds = {}
+	App.popupEvidence = {}
 end
 App.ResetCatchStats()
 
@@ -344,7 +347,11 @@ end
 
 function App.SetCatchOdds(record, chance, source)
 	if record.stats ~= App.catchStats then return end
-	if chance and not record.chance then record.stats.known += 1 end
+	if chance and not record.chance then
+		record.stats.known += 1
+		local rarity = record.fish.Rarity:lower()
+		record.stats.knownRarity[rarity] = (record.stats.knownRarity[rarity] or 0) + 1
+	end
 	record.chance = chance
 	record.source = source
 	record.description = record.fish.Name .. " | " .. record.fish.Mutation .. " | " .. record.fish.Rarity
@@ -367,6 +374,39 @@ function App.SetCatchOdds(record, chance, source)
 end
 
 -- The game's catch popup can contain odds that GotFish does not send.
+function App.CatchDiagnostic(data)
+	local keys = {}
+	for key, value in pairs(data) do
+		if #keys >= 40 then break end
+		if type(key) == "string" then table.insert(keys, App.CleanText(key) .. ":" .. type(value)) end
+	end
+	table.sort(keys)
+	local function scalar(value)
+		return (type(value) == "string" or type(value) == "number") and tostring(value):sub(1,100) or type(value)
+	end
+	return "fields=" .. table.concat(keys, ", ") .. "; chance=" .. scalar(data.chance) .. "; Chance=" .. scalar(data.Chance)
+end
+
+function App.BuildStatsDiagnostic()
+	local stats = App.catchStats
+	local lines = {"Darus Hub diagnostik statistik v1", "Tangkapan=" .. stats.total .. "; peluang=" .. stats.known,
+		"Inventaris: " .. App.remoteStatus.inventory, "Galatama: " .. App.remoteStatus.galatama,
+		"Terlangka terbaca: " .. stats.best, "Secret/Forgotten terbaru (maks 30):"}
+	for _, record in ipairs(stats.rareRecords) do
+		table.insert(lines, "#" .. record.index .. " " .. record.description .. "; ID=" .. (record.id and "ada" or "tidak ada")
+			.. "; berat=" .. tostring(record.weight) .. "; sumber=" .. tostring(record.source)
+			.. "\n  " .. record.eventDiagnostic .. "\n  popup=" .. (record.popupDiagnostic or "Belum ada pasangan popup yang tervalidasi"))
+	end
+	table.insert(lines, "Sampel event terakhir:")
+	for index = 1, math.min(5, #stats.history) do
+		local record = stats.history[index]
+		table.insert(lines, record.description .. "\n  " .. record.eventDiagnostic)
+	end
+	table.insert(lines, "Perubahan label peluang/berat yang terlihat (maks 30):")
+	for _, entry in ipairs(App.popupEvidence) do table.insert(lines, entry) end
+	return table.concat(lines, "\n")
+end
+
 -- Read only visible game UI, and pair a fresh, unambiguous popup with its catch.
 do
 	local snapshots = setmetatable({}, {__mode = "k"})
@@ -390,8 +430,13 @@ do
 	local function matches(record, title, weight)
 		local name, mutation = plain(record.fish.Name), plain(record.fish.Mutation)
 		if title ~= name and title:sub(-#name - 1) ~= " " .. name then return false end
-		if mutation ~= "normal" and title:sub(1, #mutation + 1) ~= mutation .. " " then return false end
-		if record.weight and (not weight or math.abs(record.weight - weight) > 0.015) then return false end
+		if mutation ~= "normal" and title:sub(1, #mutation + 1) ~= mutation .. " " then
+			record.popupDiagnostic = "Mutasi judul berbeda: " .. title; return false
+		end
+		if record.weight and (not weight or math.abs(record.weight - weight) > 0.015) then
+			record.popupDiagnostic = "Berat popup berbeda: " .. tostring(weight); return false
+		end
+		record.popupDiagnostic = "Identitas cocok: " .. title .. " (" .. tostring(weight) .. "kg)"
 		return true
 	end
 	local function sample(initial)
@@ -404,6 +449,12 @@ do
 						local old = snapshots[item]
 						if not old or old.text ~= text or old.visible ~= shown then
 							snapshots[item] = {text = text, visible = shown, changed = initial and -math.huge or os.clock()}
+							if shown and not initial and (text:match("^1%s+in%s+") or text:match("^1%s+dari%s+") or text:match("%d[%d%.,]*%s*kg")) then
+								local path, ancestor = {}, item
+								while ancestor and ancestor ~= PlayerGui and #path < 10 do table.insert(path, 1, ancestor.Name); ancestor = ancestor.Parent end
+								table.insert(App.popupEvidence, string.format("+%.1fs %s: %s", os.clock()-App.catchStats.started, table.concat(path,"/"), text))
+								if #App.popupEvidence > 30 then table.remove(App.popupEvidence, 1) end
+							end
 						end
 						if shown then table.insert(labels, item) end
 					end
@@ -446,15 +497,22 @@ do
 							local match, count = nil, 0
 							for _, record in ipairs(App.pendingCatchOdds) do
 								local samePopup = record.popupLabel == titleLabel and record.popupTitleTime == titleState.changed
-								if (not record.resolved or samePopup) and titleState.changed >= record.at - 0.3 and snapshots[oddsLabel].changed >= record.at - 0.3
-									and changed <= record.at + 20
-									and matches(record, title, weight) then match = record; count += 1 end
+								if (not record.resolved or samePopup) and matches(record, title, weight) then
+									if titleState.changed >= record.at - 0.3 and snapshots[oddsLabel].changed >= record.at - 0.3 and changed <= record.at + 20 then
+										match = record; count += 1
+									else record.popupDiagnostic = "Identitas cocok, tetapi waktu judul/peluang tidak cocok dengan tangkapan" end
+								end
 							end
 							if count == 1 then
 								consumed[titleLabel] = signature
 								if not match.chance or match.source == "popup" then App.SetCatchOdds(match, odds, "popup") end
 								match.resolved = true
 								match.popupLabel, match.popupTitleTime = titleLabel, titleState.changed
+								match.popupDiagnostic = "Peluang popup terbaca: 1 dari " .. App.FormatChance(odds)
+							elseif count > 1 then
+								for _, record in ipairs(App.pendingCatchOdds) do
+									if matches(record, title, weight) then record.popupDiagnostic = "Beberapa tangkapan cocok; pasangan ambigu" end
+								end
 							end
 						end
 					end
@@ -510,11 +568,16 @@ function App.RecordCatch(data)
 	stats.total += 1
 	local rarity = fish.Rarity:lower()
 	stats.byRarity[rarity] = (stats.byRarity[rarity] or 0) + 1
-	local record = {fish = fish, stats = stats, at = os.clock(), weight = tonumber(data.weight or data.Weight), id = id, index = stats.total}
+	local record = {fish = fish, stats = stats, at = os.clock(), weight = tonumber(data.weight or data.Weight), id = id, index = stats.total,
+		eventDiagnostic = App.CatchDiagnostic(data)}
 	if id then App.seenCatchIds[id] = record end
 	stats.lastRecord = record
 	table.insert(stats.history, 1, record)
 	if #stats.history > 100 then table.remove(stats.history) end
+	if rarity == "secret" or rarity == "forgotten" then
+		table.insert(stats.rareRecords, 1, record)
+		if #stats.rareRecords > 30 then table.remove(stats.rareRecords) end
+	end
 	App.SetCatchOdds(record, chance, "event")
 	table.insert(App.pendingCatchOdds, record)
 	if #App.pendingCatchOdds > 100 then table.remove(App.pendingCatchOdds, 1) end
@@ -783,7 +846,8 @@ local function GetServerFishData()
 			and repStorage.Remote:FindFirstChild("Inventaris")
 			and repStorage.Remote.Inventaris:FindFirstChild("AmbilSemua")
 
-		if ambilSemuaRemote then
+		if ambilSemuaRemote and ambilSemuaRemote:IsA("RemoteFunction") then
+			App.remoteStatus.inventory = "Inventaris/AmbilSemua: RemoteFunction tersedia"
 			local result = {App.Invoke(ambilSemuaRemote)}
 			local data = result[1]
 			if type(data) == "table" then
@@ -813,8 +877,13 @@ local function GetServerFishData()
 					else complete = false end
 				end
 			end
+		else
+			App.remoteStatus.inventory = "Inventaris/AmbilSemua: " .. (ambilSemuaRemote and ("tipe " .. ambilSemuaRemote.ClassName .. " tidak didukung untuk membaca data") or "belum tersedia")
 		end
 	end)
+	if not ok then App.remoteStatus.inventory = "Inventaris/AmbilSemua: pembacaan gagal"
+	elseif complete then App.remoteStatus.inventory = "Inventaris/AmbilSemua: data terbaca"
+	elseif App.remoteStatus.inventory == "Inventaris/AmbilSemua: RemoteFunction tersedia" then App.remoteStatus.inventory = "Inventaris/AmbilSemua: respons kosong, gagal, atau format belum didukung" end
 	return fishDataList, ok and complete
 end
 
@@ -1227,6 +1296,22 @@ do
 	local statsLabel = row("TextLabel", "", 150)
 	local reset = row("TextButton", "Reset Statistik Sesi")
 	App.Connect(reset.MouseButton1Click, function() App.ResetCatchStats(); App.RefreshCatchStats() end)
+	local diagnosticButton = row("TextButton", "Lihat / Salin Diagnostik Statistik")
+	local diagnosticBox = row("TextBox", "", 200)
+	diagnosticBox.Name = "StatsDiagnostic"
+	diagnosticBox.Visible = false
+	diagnosticBox.ClearTextOnFocus = false
+	diagnosticBox.MultiLine = true
+	diagnosticBox.TextEditable = false
+	diagnosticBox.TextXAlignment = Enum.TextXAlignment.Left
+	diagnosticBox.TextYAlignment = Enum.TextYAlignment.Top
+	App.Connect(diagnosticButton.MouseButton1Click, function()
+		local report = App.BuildStatsDiagnostic()
+		diagnosticBox.Text = report
+		diagnosticBox.Visible = true
+		local copied = type(setclipboard) == "function" and pcall(setclipboard, report)
+		App.Report(copied and "Diagnostik statistik tersalin. Tempelkan ke percakapan untuk pemeriksaan." or "Diagnostik ditampilkan di kotak teks; clipboard tidak tersedia.")
+	end)
 	row("TextLabel", "Ikan terlangka memakai peluang 1 dari N: makin besar N, makin langka. Data peluang yang tidak tersedia tidak masuk peringkat. Statistik sejak hub dibuka/reset. Simpan pilihan melalui Settings.", 85)
 	row("TextLabel", "RIWAYAT 100 TANGKAPAN TERAKHIR")
 	local historyFrame = Instance.new("ScrollingFrame", page)
@@ -1251,6 +1336,8 @@ do
 		statsLabel.Text = string.format("Tangkapan: %d | Durasi: %02d:%02d | %.2f ikan/menit\nSecret: %d | Forgotten: %d\nIkan terlangka: %s\nTerakhir: %s\nPeluang terbaca: %d/%d (peringkat dari data terbaca)",
 			stats.total, math.floor(elapsed / 60), math.floor(elapsed % 60), rate,
 			stats.byRarity.secret or 0, stats.byRarity.forgotten or 0, stats.best, stats.last, stats.known, stats.total)
+		statsLabel.Text ..= string.format("\nPeluang Secret: %d/%d | Forgotten: %d/%d", stats.knownRarity.secret or 0, stats.byRarity.secret or 0,
+			stats.knownRarity.forgotten or 0, stats.byRarity.forgotten or 0)
 		local lines = {}
 		for _, record in ipairs(stats.history) do
 			table.insert(lines, "#" .. record.index .. "  " .. record.description)
@@ -1697,13 +1784,37 @@ App.Connect(TeleportGalatamaBtn.MouseButton1Click, function()
 	pcall(function() LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-8008.12744, 1227.96838, -6091.92627) + Vector3.new(0, 5, 0) end)
 end)
 
-AddToggle(GalatamaPage, "Aktifkan Auto Join Galatama", function(v) State.AutoGalatamaRunning = v end, true)
+AddToggle(GalatamaPage, "Aktifkan Auto Join Galatama", function(v)
+	State.AutoGalatamaRunning = v
+	App.remoteStatus.galatama = v and "Galatama: menunggu pemeriksaan remote" or "Galatama: OFF"
+	if App.galatamaStatus then App.galatamaStatus.Text = App.remoteStatus.galatama end
+end, true)
+do
+	local status = Instance.new("TextLabel", GalatamaPage)
+	status.Size = UDim2.new(1,0,0,50)
+	status.BackgroundTransparency = 1
+	status.TextColor3 = Color3.fromRGB(210,220,235)
+	status.TextSize = 12
+	status.TextWrapped = true
+	status.Text = "Galatama: menunggu pemeriksaan remote"
+	App.galatamaStatus = status
+end
 App.Spawn(function()
 	while App.Wait(0.2) do
 		if State.AutoGalatamaRunning then
 			local folder = ReplicatedStorage:FindFirstChild("Remote")
 			local galatama = folder and folder:FindFirstChild("Galatama")
-			App.Invoke(galatama and galatama:FindFirstChild("Ikut"))
+			local join = galatama and galatama:FindFirstChild("Ikut")
+			if not join then
+				App.remoteStatus.galatama = "Galatama/Ikut: belum tersedia; menunggu"
+			elseif join:IsA("RemoteFunction") then
+				App.remoteStatus.galatama = "Galatama/Ikut: mengirim permintaan (RemoteFunction)"
+				App.Invoke(join)
+			elseif join:IsA("RemoteEvent") then
+				local ok, err = pcall(function() join:FireServer() end)
+				App.remoteStatus.galatama = ok and "Galatama/Ikut: permintaan dikirim (RemoteEvent)" or ("Galatama/Ikut gagal: " .. tostring(err))
+			else App.remoteStatus.galatama = "Galatama/Ikut: tipe " .. join.ClassName .. " tidak didukung" end
+			App.galatamaStatus.Text = App.remoteStatus.galatama
 			App.Wait(10,function() return State.AutoGalatamaRunning end)
 		end
 	end

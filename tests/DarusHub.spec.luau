@@ -696,6 +696,40 @@ check(findText("Peluang terbaca: 105/106","TextLabel",oddsPage)~=nil,"unread odd
 click("Reset Statistik Sesi")
 check(findText("Belum ada tangkapan.","TextLabel",oddsPage)~=nil,"reset clears history")
 
+-- Missing remotes are feature-specific waiting states, not generic failures.
+click("Lihat / Salin Diagnostik Statistik")
+local diagnosticBox=findText("Darus Hub diagnostik statistik","TextBox",oddsPage)
+check(diagnosticBox.Visible and diagnosticBox.Text:find("Galatama/Ikut: belum tersedia",1,true),"diagnostic identifies missing Galatama path")
+notify.OnClientEvent:Fire("GotFish",{baseName="Diagnostic Secret",rarity="Secret",mutation="Normal",authToken="not-for-export",oddsText="unknown schema"}); step(0)
+check(findText("Peluang Secret: 0/1","TextLabel",oddsPage)~=nil,"unread Secret coverage explicit")
+for index=1,101 do catchOdds("Diagnostic Common " .. index,10,"Common") end
+click("Lihat / Salin Diagnostik Statistik")
+check(diagnosticBox.Text:find("Diagnostic Secret",1,true) and diagnosticBox.Text:find("oddsText:string",1,true),"rare event schema retained beyond 100-catch history")
+check(not diagnosticBox.Text:find("not-for-export",1,true),"diagnostic does not dump arbitrary event values")
+local galatama=Instance.new("Folder",remoteFolder); galatama.Name="Galatama"
+local joinEvent=Instance.new("RemoteEvent",galatama); joinEvent.Name="Ikut"
+local joinCalls=0
+joinEvent.serverCallback=function() joinCalls+=1 end
+step(11)
+check(joinCalls>0,"Galatama RemoteEvent dispatched using FireServer")
+click("Aktifkan Auto Join Galatama")
+local beforeJoinOff=joinCalls; step(11)
+check(joinCalls==beforeJoinOff,"manual Galatama OFF prevents join calls")
+joinEvent:Destroy()
+local joinFunction=Instance.new("RemoteFunction",galatama); joinFunction.Name="Ikut"
+joinFunction.serverCallback=function() joinCalls+=1; return true end
+click("Aktifkan Auto Join Galatama"); step(1)
+check(joinCalls>beforeJoinOff,"Galatama RemoteFunction dispatched using InvokeServer")
+click("Aktifkan Auto Join Galatama")
+getAll.Parent=nil
+local unsupportedInventory=Instance.new("RemoteEvent",inventory); unsupportedInventory.Name="AmbilSemua"
+notify.OnClientEvent:Fire("GotFish",{uid="unsupportedInventoryId",baseName="Unread Secret",rarity="Secret",mutation="Normal"}); step(9)
+click("Lihat / Salin Diagnostik Statistik")
+check(diagnosticBox.Text:find("Inventaris/AmbilSemua: tipe RemoteEvent",1,true),"unsupported inventory remote diagnosed without invoking it")
+unsupportedInventory:Destroy(); getAll.Parent=inventory
+click("Reset Statistik Sesi"); click("Lihat / Salin Diagnostik Statistik")
+check(not diagnosticBox.Text:find("Diagnostic Secret",1,true),"reset clears retained rare diagnostics")
+
 click("×"); step(1)
 check(playerGui:FindFirstChild("DarusHub")==nil,"close destroys UI")
 check(connectionCount()==0,"close removes every registered connection")
