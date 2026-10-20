@@ -427,51 +427,22 @@ check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"non-catch and malform
 click("Reset Statistik Sesi")
 notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="Secret Fish",chance="2M"}); step(0)
 check(findText("Tangkapan: 0","TextLabel",catchPage)~=nil,"reset prevents duplicate events from prior session")
-fill("Nama ikan dilindungi","Keep Fish, Another Fish")
-fill("Mutasi dilindungi","Gold, 8-Bit")
+-- Statistics no longer contains sale protection; sales do not require inventory reads.
+local hasProtection=false
+for _,object in ipairs(catchPage:GetDescendants()) do
+    if object.Text and object.Text:find("PELINDUNG AUTO SELL",1,true) then hasProtection=true end
+end
+check(not hasProtection,"sale protection section removed from statistics")
 click("Simpan Konfigurasi")
 local catchSaved=encoded[files["DarusHub_Config.json"]]
-check(catchSaved.TargetName==nil and catchSaved.ProtectMutations=="Gold, 8-Bit","target settings removed; protection settings saved")
-
--- Bulk sale is blocked even for favorited fish: server sell exclusions are unknown.
+check(catchSaved.ProtectNames==nil and catchSaved.ProtectMutations==nil and catchSaved.ProtectRarities==nil,"protection filters no longer saved")
 sell.serverCallback=function() sellCalls+=1; return true end
-local guardedPosition=root.Position
-local function attemptSale(data)
-	getAll.serverCallback=function() return data end
-	local count=sellCalls
-	click("Auto Sell Timer"); step(7.5); click("Auto Sell Timer")
-	return sellCalls-count
-end
-check(attemptSale({{uid="p1",nama="Rare Fish",rarity="Secret",mutasi="Normal"}})==0,"default Secret protection blocks bulk sale")
-check(attemptSale({{uid="p2",nama="Rare Fish",rarity="Forgotten",mutasi="Normal"}})==0,"default Forgotten protection blocks bulk sale")
-check(attemptSale({{uid="p3",nama="test fish",rarity="Common",mutasi="8-bit"}})==0,"protected mutation remains effective")
-check(attemptSale({{uid="p4",nama="keep fish",rarity="Common",mutasi="Normal"}})==0,"custom protected name blocks sale")
-check(attemptSale({{uid="p5",nama="Ordinary Fish",rarity="Common",mutasi="Gold"}})==0,"protected mutation blocks sale")
-check(attemptSale({{uid="p6",nama="Ordinary Fish",rarity="Common",mutasi="Normal",favorit=true}})==0,"existing favorite blocks bulk sale")
-check(attemptSale({{uid="p7",rarity="Common",mutasi="Normal"}})==0,"incomplete inventory cannot pass sale guard")
-check(attemptSale({{uid="p8",nama="Ordinary Fish",rarity="Common",mutasi="Normal"},false})==0,"malformed row cannot be silently omitted")
-check(attemptSale({items={}})==0,"unknown inventory envelope blocked")
-check(attemptSale(nil)==0,"failed inventory response blocks sale")
-check(attemptSale({{uid="p9",nama="Ordinary Fish",rarity="Common",mutasi="8xBit"}})==1,"safe fish sold and mutation pattern is literal")
-check(root.Position.X==guardedPosition.X and root.Position.Y==guardedPosition.Y,"guarded sale restores initial position")
-local beforeRace=sellCalls
-getAll.serverCallback=function()
-	notify.OnClientEvent:Fire("GotFish",{uid="lateCatch",baseName="New Fish",rarity="Secret",mutation="Normal"})
-	task.wait(0.1)
-	return {}
-end
-click("Auto Sell Timer"); step(7.5); click("Auto Sell Timer")
-check(sellCalls==beforeRace,"catch during inventory read invalidates sale snapshot")
-getAll.serverCallback=function() task.wait(2); return {} end
-click("Auto Sell Timer"); step(7); click("Auto Sell Timer"); step(3)
-check(sellCalls==beforeRace,"OFF during inventory read prevents delayed sale")
-getAll.serverCallback=function() task.wait(2); return {} end
-click("Auto Sell Timer"); step(7); click("Auto Sell Timer"); click("Auto Sell Timer"); step(2)
-check(sellCalls==beforeRace,"OFF/ON invalidates the previous sale check")
-click("Auto Sell Timer")
 getAll.serverCallback=function() error("inventory unavailable") end
+local beforeUnguarded=sellCalls
+local salePosition=root.Position
 click("Auto Sell Timer"); step(7.5); click("Auto Sell Timer")
-check(sellCalls==beforeRace,"inventory exception blocks sale")
+check(sellCalls==beforeUnguarded+1,"auto sell no longer blocked by inventory checks")
+check(root.Position.X==salePosition.X and root.Position.Y==salePosition.Y,"auto sell still restores player position")
 getAll.serverCallback=function() return {} end
 
 -- Visual changes restore both on OFF and shutdown.
@@ -514,7 +485,6 @@ click("Reset Konfigurasi"); step(0)
 check(findText("Anti-AFK","TextButton").Text:find("[ON]",1,true) and findText("Aktifkan Auto Join Galatama","TextButton").Text:find("[ON]",1,true),"reset restores default ON toggles")
 check(box("Bite Delay").Text=="0.5" and box("Jeda Waktu Jual").Text=="5","reset refreshes numeric UI")
 check(box("Paste Discord").Text=="","reset clears webhook UI")
-check(box("Rarity dilindungi").Text=="Secret, Forgotten","reset restores protection defaults")
 check(findText("8-Bit","TextButton",mutationScope).Text:find("[ ]",1,true),"reset refreshes filter UI")
 step(2)
 
@@ -524,11 +494,9 @@ RunHub(); step(2)
 check(gui.destroyed,"rerun shuts down previous GUI")
 check(connectionCount()<=baseline,"rerun does not leak connections: " .. connectionCount() .. "/" .. baseline)
 local cleanBaseline=connectionCount()
-fill("Mutasi dilindungi","8-Bit")
 click("Simpan Konfigurasi")
 RunHub(); step(2)
 check(connectionCount()==cleanBaseline,"consecutive fresh runs have stable connection count")
-check(box("Mutasi dilindungi").Text=="8-Bit","saved catch settings reload")
 check(findText("Tangkapan: 0","TextLabel")~=nil,"rerun begins fresh catch statistics")
 check(player.Character.Humanoid.WalkSpeed==16 and head.Transparency==0.25 and services.Lighting.GlobalShadows,"rerun restores character and lighting")
 check(head:FindFirstChild("CustomPlayerHalo")==nil,"rerun removes owned halo")

@@ -8,7 +8,7 @@ Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabas
 ## Fitur
 
 - Fishing & Sell: dua mode pancing yang saling eksklusif, pilihan spot, rotasi spot, jeda gigitan, dan timer jual ke NPC.
-- Statistik: ringkasan sesi, ikan terlangka, riwayat 100 tangkapan, dan pelindung auto sell.
+- Statistik: ringkasan sesi, ikan terlangka, riwayat 100 tangkapan, dan diagnostik.
 - Favorite: filter rarity/mutasi, auto favorite, serta unfavorite berdasarkan filter atau seluruh ikan.
 - Galatama dan perpindahan berdasarkan perkiraan jadwal Core.
 - Teleport shop/NPC dan pemain.
@@ -118,21 +118,14 @@ Ringkasan juga menampilkan cakupan pembacaan peluang Secret dan Forgotten secara
 terpisah. Data ini diperlukan untuk memastikan penyebab tangkapan tertentu terlewat;
 pengujian simulasi tidak membuktikan seluruh layout game asli sudah terbaca.
 
-### Pelindung auto sell
-
-Di bawah statistik, isi nama, mutasi, atau rarity yang dilindungi dengan pemisah
-koma. Bawaan melindungi **Secret**, **Forgotten**, serta ikan favorit. Simpan filter
-melalui **Settings > Simpan Konfigurasi**. Reset statistik tidak mengubah filter.
-
-Sumber memakai `JualSemua`; karena itu seluruh penjualan otomatis dibatalkan jika
-ada ikan dilindungi, inventaris gagal/tidak lengkap, atau tangkapan baru muncul
-selama pemeriksaan. Alasannya ditampilkan pada status. Gunakan penjualan selektif
-di game jika tersedia. Pemeriksaan dan penjualan tidak atomik di server; pelindung
-ini tidak membatalkan permintaan jual yang sudah dikirim atau penjualan manual.
+Pelindung Auto Sell dan filter tambahannya sudah dihapus dari menu Statistik.
+Auto sell langsung memakai perintah `JualSemua` game sesuai timer, tanpa pemeriksaan
+filter nama, mutasi, rarity, atau favorit dari hub. Aturan penjualan tetap mengikuti
+server game. Pengaturan pelindung lama diabaikan dan tidak disimpan kembali.
 
 ## Validasi
 
-Kompilasi Luau dan **146 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **131 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
@@ -144,9 +137,8 @@ yang terpisah, tangkapan ambigu, timeout, reset, dan hitungan yang tidak bertamb
 Statistik diuji untuk penghapusan target, Secret 1M vs Mythical 600K, popup dekoratif
 terlambat, koreksi ID yang sama, pemeriksaan inventaris berdasarkan ID, singkatan K/M/B,
 peringkat angka penuh, riwayat 100 baris, reset, penyimpanan dan pemuatan ulang.
-Pelindung jual diuji untuk favorit,
-filter nama/mutasi/rarity, inventaris gagal/tidak lengkap, tangkapan baru saat
-pemeriksaan, dan pembatalan ketika auto sell dimatikan atau OFF/ON dengan cepat.
+Auto sell diuji tanpa ketergantungan pemeriksaan inventaris, dengan pemulihan posisi
+dan penghapusan menu/konfigurasi pelindung.
 Pengujian tidak mengirim pesan atau permintaan ke server game/Discord nyata.
 
 Jalankan dengan binari dari [rilis resmi Luau](https://github.com/luau-lang/luau/releases):

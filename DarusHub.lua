@@ -154,10 +154,6 @@ State.Config = {
 	WebhookUrl = ""
 }
 
-App.catchDefaults = {ProtectNames = "",
-	ProtectMutations = "", ProtectRarities = "Secret, Forgotten"}
-for key, value in pairs(App.catchDefaults) do State.Config[key] = value end
-
 function App.CleanText(value)
 	return type(value) == "string" and value:sub(1, 500):match("^%s*(.-)%s*$") or ""
 end
@@ -186,16 +182,12 @@ local function LoadConfig()
 	State.Config.TargetGroupId = math.floor(App.Number(data.TargetGroupId, 7019573, 1, 1e12))
 	State.Config.WebhookEnabled = false
 	State.Config.WebhookUrl = type(data.WebhookUrl) == "string" and data.WebhookUrl or ""
-	for key, default in pairs(App.catchDefaults) do
-		State.Config[key] = type(data[key]) == "string" and App.CleanText(data[key]) or default
-	end
 	App.loadedConfig = data
 end
 
 local function ResetConfig()
 	State.Config = {BiteDelay = "0.5", SelectedSpot = "Spot Mancing Jembatan", AutoSellTimer = "5",
 		AntiAdminEnabled = false, TargetGroupId = 7019573, WebhookEnabled = false, WebhookUrl = ""}
-	for key, value in pairs(App.catchDefaults) do State.Config[key] = value end
 	State.BiteDelayInput, State.AutoSellTimerInput = "0.5", "5"
 	State.SelectedFishingSpot = State.Config.SelectedSpot
 	State.CoreEventActive = false
@@ -278,7 +270,6 @@ end
 ------------------------------------------------------------------
 local hookedRemotes = setmetatable({}, {__mode = "k"})
 
-App.catchRevision = 0
 App.remoteStatus = {inventory = "Belum diperiksa", galatama = "Menunggu pemeriksaan"}
 App.popupEvidence = {}
 App.seenCatchIds, App.catchIdOrder = {}, {}
@@ -288,22 +279,6 @@ function App.ResetCatchStats()
 	App.popupEvidence = {}
 end
 App.ResetCatchStats()
-
-function App.InFishList(value, list)
-	local normalized = App.CleanText(value):lower()
-	if normalized == "" then return false end
-	for entry in tostring(list or ""):gmatch("[^,\n]+") do
-		if App.CleanText(entry):lower() == normalized then return true end
-	end
-	return false
-end
-
-function App.ProtectedFish(fish)
-	return fish.IsFavorited
-		or App.InFishList(fish.Name, State.Config.ProtectNames)
-		or App.InFishList(fish.Mutation, State.Config.ProtectMutations)
-		or App.InFishList(fish.Rarity, State.Config.ProtectRarities)
-end
 
 -- Compare reported 1-in-N denominators, never category order or guessed odds.
 function App.ChanceDenominator(value)
@@ -563,7 +538,6 @@ function App.RecordCatch(data)
 	local chance = App.ChanceDenominator(data.chance or data.Chance)
 	if fish.Rarity == "" then fish.Rarity = "Unknown" end
 	if fish.Mutation == "" then fish.Mutation = "Normal" end
-	App.catchRevision += 1
 	local stats = App.catchStats
 	stats.total += 1
 	local rarity = fish.Rarity:lower()
@@ -817,10 +791,6 @@ local function TriggerSellToNpc()
 	local ok, err = pcall(function()
 		App.Set("sellPosition",root,"CFrame",NpcSellCFrame + Vector3.new(0,5,0))
 		if App.Wait(0.8, function() return State.AutoSellRunning and App.sellEpoch == sellEpoch and LocalPlayer.Character == character end) then
-			local revision = App.catchRevision
-			local allowed, reason = App.CheckSaleProtection()
-			if not allowed then App.Report(reason); return end
-			if revision ~= App.catchRevision then App.Report("Jual dibatalkan: ada tangkapan baru saat pemeriksaan."); return end
 			if App.running and State.AutoSellRunning and App.sellEpoch == sellEpoch and LocalPlayer.Character == character then App.Invoke(sell) end
 		end
 	end)
@@ -851,7 +821,7 @@ local function GetServerFishData()
 			local result = {App.Invoke(ambilSemuaRemote)}
 			local data = result[1]
 			if type(data) == "table" then
-				-- Only a complete array is safe for the bulk-sale guard.
+				-- Validate the inventory response used by favorites and statistics.
 				for key in pairs(data) do
 					if type(key) ~= "number" or key % 1 ~= 0 or key < 1 or key > #data then return end
 				end
@@ -901,17 +871,6 @@ App.Spawn(function()
 		if needsRead then GetServerFishData() end
 	end
 end)
-
-function App.CheckSaleProtection()
-	local fishList, complete = GetServerFishData()
-	if not complete then return false, "Jual dibatalkan: inventaris tidak lengkap atau gagal dibaca." end
-	for _, fish in ipairs(fishList) do
-		if App.ProtectedFish(fish) then
-			return false, "Jual dibatalkan: ikan dilindungi " .. fish.Name .. " (" .. fish.Mutation .. ")."
-		end
-	end
-	return true
-end
 
 function App.MatchesFish(fish, rarities, mutations)
 	if rarities[fish.Rarity] then return true end
@@ -1281,18 +1240,6 @@ do
 		return item
 	end
 	row("TextLabel", "STATISTIK SESI")
-	local fields = {}
-	local function field(key, title)
-		row("TextLabel", title, 26)
-		local input = row("TextBox", State.Config[key])
-		input.PlaceholderText = title
-		input.ClearTextOnFocus = false
-		fields[key] = input
-		App.Connect(input.FocusLost, function()
-			State.Config[key] = App.CleanText(input.Text)
-			input.Text = State.Config[key]
-		end)
-	end
 	local statsLabel = row("TextLabel", "", 150)
 	local reset = row("TextButton", "Reset Statistik Sesi")
 	App.Connect(reset.MouseButton1Click, function() App.ResetCatchStats(); App.RefreshCatchStats() end)
@@ -1312,7 +1259,7 @@ do
 		local copied = type(setclipboard) == "function" and pcall(setclipboard, report)
 		App.Report(copied and "Diagnostik statistik tersalin. Tempelkan ke percakapan untuk pemeriksaan." or "Diagnostik ditampilkan di kotak teks; clipboard tidak tersedia.")
 	end)
-	row("TextLabel", "Ikan terlangka memakai peluang 1 dari N: makin besar N, makin langka. Data peluang yang tidak tersedia tidak masuk peringkat. Statistik sejak hub dibuka/reset. Simpan pilihan melalui Settings.", 85)
+	row("TextLabel", "Ikan terlangka memakai peluang 1 dari N: makin besar N, makin langka. Data peluang yang tidak tersedia tidak masuk peringkat. Statistik sejak hub dibuka/reset.", 85)
 	row("TextLabel", "RIWAYAT 100 TANGKAPAN TERAKHIR")
 	local historyFrame = Instance.new("ScrollingFrame", page)
 	historyFrame.Size = UDim2.new(1, -8, 0, 260)
@@ -1324,11 +1271,6 @@ do
 	historyLabel.Parent = historyFrame
 	historyLabel.TextXAlignment = Enum.TextXAlignment.Left
 	historyLabel.TextYAlignment = Enum.TextYAlignment.Top
-	row("TextLabel", "PELINDUNG AUTO SELL")
-	row("TextLabel", "Selalu melindungi ikan favorit dan filter yang diisi. Jika ada ikan dilindungi, seluruh jual otomatis dibatalkan karena game memakai JualSemua. Tidak melindungi penjualan manual di luar hub.", 80)
-	field("ProtectNames", "Nama ikan dilindungi (pisahkan koma)")
-	field("ProtectMutations", "Mutasi dilindungi (pisahkan koma)")
-	field("ProtectRarities", "Rarity dilindungi (pisahkan koma)")
 	function App.RefreshCatchStats()
 		local stats = App.catchStats
 		local elapsed = math.max(0, os.clock() - stats.started)
@@ -1347,7 +1289,6 @@ do
 	end
 	App.configViews = App.configViews or {}
 	table.insert(App.configViews, function()
-		for key, input in pairs(fields) do input.Text = State.Config[key] end
 		App.RefreshCatchStats()
 	end)
 	App.RefreshCatchStats()
