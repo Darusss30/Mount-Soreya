@@ -4,7 +4,7 @@ Darus Hub dikembangkan dari **`UBEYHUB.lua`**, bukan `UbeyHubV3.lua`.
 Sumber: [UbeyDev/Ubey-Hub — UBEYHUB.lua](https://github.com/UbeyDev/Ubey-Hub/blob/7152183/UBEYHUB.lua).
 Berkas utama adalah [`DarusHub.lua`](./DarusHub.lua).
 Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabase.
-Versi saat ini: **2.1**, terlihat di bagian atas hub dan laporan diagnostik.
+Versi saat ini: **2.2**, terlihat di bagian atas hub dan laporan diagnostik.
 
 ## Fitur
 
@@ -48,7 +48,7 @@ Webhook opsional memerlukan fungsi HTTP request yang kompatibel dan URL yang And
 Gunakan tombol X untuk mengakhiri sesi. Tombol minus dan tombol DH hanya mengubah tampilan menu.
 Untuk memperbarui, ambil [DarusHub.lua terbaru](https://raw.githubusercontent.com/Darusss30/Mount-Soreya/main/DarusHub.lua),
 tutup sesi lama, lalu jalankan berkas baru. Pembaruan di GitHub tidak mengganti kode
-yang sudah berjalan. Pastikan bagian atas hub menunjukkan **v2.1**; diagnostik
+yang sudah berjalan. Pastikan bagian atas hub menunjukkan **v2.2**; diagnostik
 bertanda **v1** masih berasal dari versi sebelum perbaikan probabilitas.
 **Anti-AFK** dan **Auto Join Galatama** otomatis ON saat hub dibuka atau konfigurasi
 direset. Keduanya tetap dapat dimatikan melalui tombol masing-masing.
@@ -135,8 +135,9 @@ Laporan memuat status remote Galatama/inventaris, nama dan tipe field event,
 nilai field peluang yang dikenal, 30 tangkapan Secret/Forgotten terakhir (tetap
 tersimpan meski keluar dari riwayat 100 baris), serta 30 perubahan label peluang/berat
 yang terlihat. Nilai field event lain tidak diekspor. Reset statistik menghapusnya.
-Ringkasan juga menampilkan cakupan pembacaan peluang Secret dan Forgotten secara
-terpisah. Data ini diperlukan untuk memastikan penyebab tangkapan tertentu terlewat;
+Ringkasan hanya menampilkan cakupan pembacaan peluang keseluruhan. Rincian
+peluang Secret/Forgotten dihapus; jumlah tangkapan kedua kategori tetap ditampilkan.
+Diagnostik membantu memastikan penyebab tangkapan tertentu terlewat;
 pengujian simulasi tidak membuktikan seluruh layout game asli sudah terbaca.
 
 Pelindung Auto Sell dan filter tambahannya sudah dihapus dari menu Statistik.

@@ -584,8 +584,8 @@ check(findText("Terakhir: Capital Chance | Normal | Rare | 1 dari 4K","TextLabel
 for _,value in ipairs({0,-0.01,math.huge,-math.huge,0/0,1e-320,"1/0.5"}) do catchOdds("Invalid Probability",value,"Common") end
 check(findText("Peluang terbaca: 13/20","TextLabel",oddsPage)~=nil,"invalid probabilities and overflowing reciprocals stay unresolved")
 click("Lihat / Salin Diagnostik Statistik")
-check(findText("diagnostik statistik v2.1 (probabilitas event)","TextBox",oddsPage)~=nil,"diagnostic identifies probability parser version")
-check(findText("DARUS HUB  /  v2.1","TextLabel")~=nil,"running build visible without opening diagnostics")
+check(findText("diagnostik statistik v2.2 (probabilitas event)","TextBox",oddsPage)~=nil,"diagnostic identifies probability parser version")
+check(findText("DARUS HUB  /  v2.2","TextLabel")~=nil,"running build visible without opening diagnostics")
 click("Reset Statistik Sesi")
 -- Replay the five newest records supplied in the user's v1 diagnostic.
 for _,case in ipairs({
@@ -658,7 +658,7 @@ check(findText("Ikan terlangka: Staggered | Normal | Secret | 1 dari 60M","TextL
 click("Reset Statistik Sesi")
 popupCatch("Coral Whale","Normal",135624.37,"Big Coral Whale (135.6K kg)","1 in 2M")
 check(findText("Ikan terlangka: Coral Whale | Normal | Secret | 1 dari 2M","TextLabel",oddsPage)~=nil,"135.6K kg Coral Whale screenshot yields 2M odds")
-check(findText("Peluang Secret: 1/1","TextLabel",oddsPage)~=nil,"compact-weight Secret counted as resolved")
+check(findText("Peluang terbaca: 1/1","TextLabel",oddsPage)~=nil,"compact-weight Secret counted as resolved")
 popupCatch("Sacred Guardian Squid","Fire",3326.42,"Fire Big Sacred Guardian Squid (3.3K kg)","1 in 45K",nil,"Epic")
 check(findText("Terakhir: Sacred Guardian Squid | Fire | Epic | 1 dari 45K","TextLabel",oddsPage)~=nil,"3.3K kg Fire squid screenshot yields 45K odds")
 check(findText("#2  Sacred Guardian Squid | Fire | Epic | 1 dari 45K","TextLabel",oddsPage)~=nil,"compact-weight popup enriches history")
@@ -739,7 +739,7 @@ click("Lihat / Salin Diagnostik Statistik")
 local diagnosticBox=findText("Darus Hub diagnostik statistik","TextBox",oddsPage)
 check(diagnosticBox.Visible and diagnosticBox.Text:find("Galatama/Ikut: belum tersedia",1,true),"diagnostic identifies missing Galatama path")
 notify.OnClientEvent:Fire("GotFish",{baseName="Diagnostic Secret",rarity="Secret",mutation="Normal",authToken="not-for-export",oddsText="unknown schema"}); step(0)
-check(findText("Peluang Secret: 0/1","TextLabel",oddsPage)~=nil,"unread Secret coverage explicit")
+check(findText("Peluang terbaca: 0/1","TextLabel",oddsPage)~=nil,"unread catch included in overall coverage")
 for index=1,101 do catchOdds("Diagnostic Common " .. index,10,"Common") end
 click("Lihat / Salin Diagnostik Statistik")
 check(diagnosticBox.Text:find("Diagnostic Secret",1,true) and diagnosticBox.Text:find("oddsText:string",1,true),"rare event schema retained beyond 100-catch history")

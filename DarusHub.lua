@@ -27,7 +27,7 @@ for _, name in ipairs({"DarusHub", "DarusHubCollect"}) do
 	end
 end
 local State = {}
-local App = {version = "2.1", running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
+local App = {version = "2.2", running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
 	dragSuppressed = {}, pending = {}, toggles = {}, fishingEpoch = 0, lastError = {}}
 local Gui = Instance.new("ScreenGui", PlayerGui)
 Gui.Name = "DarusHub"
@@ -275,7 +275,7 @@ App.remoteStatus = {inventory = "Belum diperiksa", galatama = "Menunggu pemeriks
 App.popupEvidence = {}
 App.seenCatchIds, App.catchIdOrder = {}, {}
 function App.ResetCatchStats()
-	App.catchStats = {started = os.clock(), total = 0, known = 0, history = {}, ranking = {}, rareRecords = {}, byRarity = {}, knownRarity = {}, bestChance = 0, best = "Belum ada data peluang", last = "-"}
+	App.catchStats = {started = os.clock(), total = 0, known = 0, history = {}, ranking = {}, rareRecords = {}, byRarity = {}, bestChance = 0, best = "Belum ada data peluang", last = "-"}
 	App.pendingCatchOdds = {}
 	App.popupEvidence = {}
 end
@@ -334,8 +334,6 @@ function App.SetCatchOdds(record, chance, source)
 	if record.stats ~= App.catchStats then return end
 	if chance and not record.chance then
 		record.stats.known += 1
-		local rarity = record.fish.Rarity:lower()
-		record.stats.knownRarity[rarity] = (record.stats.knownRarity[rarity] or 0) + 1
 	end
 	record.chance = chance
 	record.source = source
@@ -1323,7 +1321,7 @@ do
 	lastLabel.AutomaticSize = Enum.AutomaticSize.Y
 	local rarityLabel = row("TextLabel", "", 38)
 	rarityLabel.TextColor3 = Color3.fromRGB(197, 170, 249)
-	local coverageLabel = row("TextLabel", "", 64)
+	local coverageLabel = row("TextLabel", "", 38)
 	coverageLabel.TextColor3 = Color3.fromRGB(153, 177, 196)
 	local historyHeading = row("TextLabel", "RIWAYAT 100 TANGKAPAN TERAKHIR", 32)
 	historyHeading.BackgroundTransparency = 1
@@ -1393,9 +1391,7 @@ do
 		bestLabel.Text = "Ikan terlangka: " .. stats.best
 		lastLabel.Text = "Terakhir: " .. stats.last
 		rarityLabel.Text = string.format("Secret: %d   |   Forgotten: %d", stats.byRarity.secret or 0, stats.byRarity.forgotten or 0)
-		coverageLabel.Text = string.format("Peluang terbaca: %d/%d   |   Belum terbaca: %d\nPeluang Secret: %d/%d | Forgotten: %d/%d", stats.known, stats.total, stats.total - stats.known,
-			stats.knownRarity.secret or 0, stats.byRarity.secret or 0,
-			stats.knownRarity.forgotten or 0, stats.byRarity.forgotten or 0)
+		coverageLabel.Text = string.format("Peluang terbaca: %d/%d   |   Belum terbaca: %d", stats.known, stats.total, stats.total - stats.known)
 		emptyHistory.Visible = #stats.history == 0
 		for index, record in ipairs(stats.history) do
 			local label = historyRow(index)
