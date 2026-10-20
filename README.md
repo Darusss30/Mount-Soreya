@@ -98,6 +98,13 @@ dengan `1 in 50.0K` ditampilkan sebagai **1 dari 50K (tampilan game)**. Nilai in
 mengikuti angka tampilan game yang mungkin sudah dibulatkan; event/inventaris
 menggantikan pembacaan popup jika memberikan data peluang yang lebih lengkap.
 
+Berat popup mendukung angka biasa, pemisah ribuan, desimal titik/koma, serta K/M/B,
+termasuk `Big Coral Whale (135.6K kg)` dan `Fire Big Sacred Guardian Squid (3.3K kg)`.
+Pencocokan memakai interval pembulatan sesuai ketelitian tampilan: `135.6K kg`
+berarti sekitar 135.600 kg dengan toleransi setengah langkah tampilan (50 kg),
+sedangkan `157.97kg` memakai setengah langkah 0,01 kg. Berat di luar interval
+tetap ditolak; nama, mutasi, waktu, dan keunikan pasangan tetap diperiksa.
+
 Jika semua sumber tidak menyediakan peluang yang cocok, ikan tetap ada di riwayat
 dengan status **peluang belum terbaca**, dan angka X/Y menunjukkan data yang belum
 lengkap. Belum ada pengujian langsung pada semua susunan popup game asli.
@@ -125,7 +132,7 @@ server game. Pengaturan pelindung lama diabaikan dan tidak disimpan kembali.
 
 ## Validasi
 
-Kompilasi Luau dan **131 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **144 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
@@ -134,6 +141,9 @@ dalam kategori Secret yang sama, format angka, nilai invalid, seri, dan reset.
 Fallback popup diuji menggunakan teks pada laporan pengguna, RichText, prioritas
 event, kecocokan identitas, popup lama/tersembunyi, pembaruan judul dan peluang
 yang terpisah, tangkapan ambigu, timeout, reset, dan hitungan yang tidak bertambah ganda.
+Regresi berat mencakup Coral Whale 135.6K kg / 2M, Fire Sacred Guardian Squid
+3.3K kg / 45K, berat M/B, koma desimal, pemisah ribuan, berat di bawah 1 kg,
+serta penolakan berat di luar interval pembulatan.
 Statistik diuji untuk penghapusan target, Secret 1M vs Mythical 600K, popup dekoratif
 terlambat, koreksi ID yang sama, pemeriksaan inventaris berdasarkan ID, singkatan K/M/B,
 peringkat angka penuh, riwayat 100 baris, reset, penyimpanan dan pemuatan ulang.

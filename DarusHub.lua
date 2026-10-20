@@ -399,16 +399,28 @@ do
 		return object == PlayerGui
 	end
 	local function popupTitle(text)
-		local title, weight = text:match("^(.-)%s*%(([%d%.,]+)%s*kg%)$")
-		return title and App.CleanText(title), weight and tonumber((weight:gsub(",", ".")))
+		local title, digits, suffix = text:match("^(.-)%s*%(([%d%.,]+)%s*([kmb]?)%s*kg%)$")
+		if not title then return nil end
+		local scale = ({k = 1e3, m = 1e6, b = 1e9})[suffix] or 1
+		local decimal = digits:gsub(",", ".")
+		local weight = App.ChanceDenominator(digits .. suffix)
+		-- Chance denominators start at 1; ordinary fish weights may be below 1 kg.
+		if not weight and suffix == "" then weight = tonumber(decimal) end
+		if not weight or weight ~= weight or weight < 0 or weight == math.huge then return nil end
+		local fraction = decimal:match("%.(%d+)$")
+		-- Grouped integers such as 135,600 are not three-decimal weights.
+		local grouped = suffix == "" and weight ~= tonumber(decimal)
+		local precision = grouped and 0 or (fraction and #fraction or 0)
+		local halfStep = scale * 10 ^ -precision / 2
+		return App.CleanText(title), weight, halfStep + math.max(1e-6, weight * 1e-12)
 	end
-	local function matches(record, title, weight)
+	local function matches(record, title, weight, tolerance)
 		local name, mutation = plain(record.fish.Name), plain(record.fish.Mutation)
 		if title ~= name and title:sub(-#name - 1) ~= " " .. name then return false end
 		if mutation ~= "normal" and title:sub(1, #mutation + 1) ~= mutation .. " " then
 			record.popupDiagnostic = "Mutasi judul berbeda: " .. title; return false
 		end
-		if record.weight and (not weight or math.abs(record.weight - weight) > 0.015) then
+		if record.weight and (not weight or math.abs(record.weight - weight) > tolerance) then
 			record.popupDiagnostic = "Berat popup berbeda: " .. tostring(weight); return false
 		end
 		record.popupDiagnostic = "Identitas cocok: " .. title .. " (" .. tostring(weight) .. "kg)"
@@ -424,7 +436,7 @@ do
 						local old = snapshots[item]
 						if not old or old.text ~= text or old.visible ~= shown then
 							snapshots[item] = {text = text, visible = shown, changed = initial and -math.huge or os.clock()}
-							if shown and not initial and (text:match("^1%s+in%s+") or text:match("^1%s+dari%s+") or text:match("%d[%d%.,]*%s*kg")) then
+							if shown and not initial and (text:match("^1%s+in%s+") or text:match("^1%s+dari%s+") or text:match("%d[%d%.,]*%s*[kmb]?%s*kg")) then
 								local path, ancestor = {}, item
 								while ancestor and ancestor ~= PlayerGui and #path < 10 do table.insert(path, 1, ancestor.Name); ancestor = ancestor.Parent end
 								table.insert(App.popupEvidence, string.format("+%.1fs %s: %s", os.clock()-App.catchStats.started, table.concat(path,"/"), text))
@@ -441,7 +453,7 @@ do
 	local function resolve(labels)
 		for _, titleLabel in ipairs(labels) do
 			local titleState = snapshots[titleLabel]
-			local title, weight = popupTitle(titleState.text)
+			local title, weight, tolerance = popupTitle(titleState.text)
 			if not title then continue end
 			local parent = titleLabel.Parent
 			for _ = 1, 10 do
@@ -472,7 +484,7 @@ do
 							local match, count = nil, 0
 							for _, record in ipairs(App.pendingCatchOdds) do
 								local samePopup = record.popupLabel == titleLabel and record.popupTitleTime == titleState.changed
-								if (not record.resolved or samePopup) and matches(record, title, weight) then
+								if (not record.resolved or samePopup) and matches(record, title, weight, tolerance) then
 									if titleState.changed >= record.at - 0.3 and snapshots[oddsLabel].changed >= record.at - 0.3 and changed <= record.at + 20 then
 										match = record; count += 1
 									else record.popupDiagnostic = "Identitas cocok, tetapi waktu judul/peluang tidak cocok dengan tangkapan" end
@@ -486,7 +498,7 @@ do
 								match.popupDiagnostic = "Peluang popup terbaca: 1 dari " .. App.FormatChance(odds)
 							elseif count > 1 then
 								for _, record in ipairs(App.pendingCatchOdds) do
-									if matches(record, title, weight) then record.popupDiagnostic = "Beberapa tangkapan cocok; pasangan ambigu" end
+									if matches(record, title, weight, tolerance) then record.popupDiagnostic = "Beberapa tangkapan cocok; pasangan ambigu" end
 								end
 							end
 						end
