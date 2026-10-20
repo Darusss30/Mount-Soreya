@@ -311,6 +311,15 @@ function App.ChanceDenominator(value)
 	return number
 end
 
+-- GotFish reports numeric chance as probability p (e.g. 0.0002 = 1 in 5K).
+-- Keep this separate from display denominators and popup weight parsing.
+function App.EventChanceDenominator(value)
+	if type(value) == "number" and value > 0 and value <= 1 then
+		return App.ChanceDenominator(1 / value)
+	end
+	return App.ChanceDenominator(value)
+end
+
 function App.FormatChance(value)
 	local scale, suffix = 1, ""
 	if value >= 1e9 then scale, suffix = 1e9, "B"
@@ -364,7 +373,7 @@ end
 
 function App.BuildStatsDiagnostic()
 	local stats = App.catchStats
-	local lines = {"Darus Hub diagnostik statistik v1", "Tangkapan=" .. stats.total .. "; peluang=" .. stats.known,
+	local lines = {"Darus Hub diagnostik statistik v2 (probabilitas event)", "Tangkapan=" .. stats.total .. "; peluang=" .. stats.known,
 		"Inventaris: " .. App.remoteStatus.inventory, "Galatama: " .. App.remoteStatus.galatama,
 		"Terlangka terbaca: " .. stats.best, "Secret/Forgotten terbaru (maks 30):"}
 	for _, record in ipairs(stats.rareRecords) do
@@ -536,7 +545,7 @@ function App.RecordCatch(data)
 		id = tostring(id)
 		local existing = App.seenCatchIds[id]
 		if existing then
-			local chance = App.ChanceDenominator(data.chance or data.Chance)
+			local chance = App.EventChanceDenominator(data.chance or data.Chance)
 			if existing.stats == App.catchStats and chance then App.SetCatchOdds(existing, chance, "event") end
 			return false
 		end
@@ -547,7 +556,7 @@ function App.RecordCatch(data)
 	if name == "" then return false end
 	local fish = {Name = name, Rarity = App.CleanText(data.rarity or data.Rarity),
 		Mutation = App.CleanText(data.mutation or data.mutasi or data.Mutation)}
-	local chance = App.ChanceDenominator(data.chance or data.Chance)
+	local chance = App.EventChanceDenominator(data.chance or data.Chance)
 	if fish.Rarity == "" then fish.Rarity = "Unknown" end
 	if fish.Mutation == "" then fish.Mutation = "Normal" end
 	local stats = App.catchStats
@@ -841,7 +850,7 @@ local function GetServerFishData()
 				for _, fish in ipairs(data) do
 					if type(fish) == "table" and (fish.uid or fish.UUID) then
 						local record = App.seenCatchIds[tostring(fish.uid or fish.UUID)]
-						local chance = App.ChanceDenominator(fish.chance or fish.Chance)
+						local chance = App.EventChanceDenominator(fish.chance or fish.Chance)
 						if record and record.stats == App.catchStats and chance and (not record.chance or record.source == "popup") then
 							App.SetCatchOdds(record, chance, "inventory")
 						end

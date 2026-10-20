@@ -548,7 +548,7 @@ for _,case in ipairs({
 	catchOdds("Format " .. tostring(case[2]),case[1])
 	check(findText("Ikan terlangka: Format " .. tostring(case[2]) .. " | Normal | Secret | 1 dari " .. case[3],"TextLabel",oddsPage)~=nil,"supported denominator format: " .. tostring(case[1]))
 end
-for _,value in ipairs({"N/A","20M garbage","1/0",-10,0.01,math.huge,0/0,"1 in 1e999","12,34,567"}) do catchOdds("Invalid",value,"Forgotten") end
+for _,value in ipairs({"N/A","20M garbage","1/0",-10,0,math.huge,0/0,"1 in 1e999","12,34,567"}) do catchOdds("Invalid",value,"Forgotten") end
 catchOdds("Missing",nil,"Forgotten")
 catchOdds("Tie","1 in 1B")
 check(findText("Ikan terlangka: Format 1000000000 | Normal | Secret | 1 dari 1B","TextLabel",oddsPage)~=nil,"invalid missing and tied odds preserve best catch")
@@ -557,6 +557,36 @@ click("Reset Statistik Sesi")
 check(findText("Ikan terlangka: Belum ada data peluang","TextLabel",oddsPage)~=nil,"reset clears best odds")
 
 -- Game popup fallback: reproduce the supplied Manta Ray / 1 in 50.0K display.
+-- Replay actual diagnostic probabilities without any popup or catch UID.
+for _=1,4 do catchOdds("Emberback Spider Crab",0.00028571428571428574,"Rare") end
+check(findText("Ikan terlangka: Emberback Spider Crab | Normal | Rare | 1 dari 3.5K","TextLabel",oddsPage)~=nil,"diagnostic crab probability resolves immediately without popup")
+catchOdds("Enchanted Angelfish",0.0002,"Rare")
+check(findText("Ikan terlangka: Enchanted Angelfish | Normal | Rare | 1 dari 5K","TextLabel",oddsPage)~=nil,"diagnostic angelfish probability becomes 5K")
+check(findText("Peluang terbaca: 5/5","TextLabel",oddsPage)~=nil,"repeated fish without IDs all count and resolve")
+for _,case in ipairs({
+	{"Mythical Probability",1/600000,"Mythical","600K"},
+	{"Secret Probability",0.000001,"Secret","1M"},
+	{"Coral Whale",0.0000005,"Secret","2M"},
+	{"Forgotten Probability",1/200000000,"Forgotten","200M"},
+}) do
+	catchOdds(case[1],case[2],case[3])
+	check(findText("Ikan terlangka: " .. case[1] .. " | Normal | " .. case[3] .. " | 1 dari " .. case[4],"TextLabel",oddsPage)~=nil,"probability ranking promotes " .. case[4])
+end
+catchOdds("Sacred Guardian Squid",1/45000,"Epic")
+check(findText("#10  Sacred Guardian Squid | Normal | Epic | 1 dari 45K","TextLabel",oddsPage)~=nil,"commoner probability remains in history")
+check(findText("Ikan terlangka: Forgotten Probability | Normal | Forgotten | 1 dari 200M","TextLabel",oddsPage)~=nil,"45K does not replace 200M probability")
+for _,case in ipairs({{1,"1"},{0.01,"100"}}) do
+	catchOdds("Boundary Probability",case[1],"Common")
+	check(findText("Terakhir: Boundary Probability | Normal | Common | 1 dari " .. case[2],"TextLabel",oddsPage)~=nil,"valid probability boundary " .. tostring(case[1]))
+end
+notify.OnClientEvent:Fire("GotFish",{baseName="Capital Chance",Chance=1/4000,rarity="Rare"}); step(0)
+check(findText("Terakhir: Capital Chance | Normal | Rare | 1 dari 4K","TextLabel",oddsPage)~=nil,"capital Chance probability also resolves")
+for _,value in ipairs({0,-0.01,math.huge,-math.huge,0/0,1e-320,"1/0.5"}) do catchOdds("Invalid Probability",value,"Common") end
+check(findText("Peluang terbaca: 13/20","TextLabel",oddsPage)~=nil,"invalid probabilities and overflowing reciprocals stay unresolved")
+click("Lihat / Salin Diagnostik Statistik")
+check(findText("diagnostik statistik v2 (probabilitas event)","TextBox",oddsPage)~=nil,"diagnostic identifies probability parser version")
+click("Reset Statistik Sesi")
+
 local gamePopup=Instance.new("ScreenGui",playerGui)
 local popupFrame=Instance.new("Frame",gamePopup)
 local popupName=Instance.new("TextLabel",popupFrame)
@@ -653,7 +683,7 @@ check(findText("Ikan terlangka: Delayed Secret | Normal | Secret | 1 dari 1M","T
 check(findText("#2  Delayed Secret | Normal | Secret | 1 dari 1M","TextLabel",oddsPage)~=nil,"delayed rare popup updates history")
 rareOdds.Text="1 in 2M"; rareOddsShadow.Text=rareOdds.Text; step(0.5)
 check(findText("Ikan terlangka: Delayed Secret | Normal | Secret | 1 dari 2M","TextLabel",oddsPage)~=nil,"same popup odds can finish updating after initial read")
-notify.OnClientEvent:Fire("GotFish",{uid="rareDelayed",chance="1.5M"}); step(0)
+notify.OnClientEvent:Fire("GotFish",{uid="rareDelayed",chance=1/1500000}); step(0)
 check(findText("Ikan terlangka: Delayed Secret | Normal | Secret | 1 dari 1.5M","TextLabel",oddsPage)~=nil,"ID-only authoritative update corrects popup without name")
 check(findText("Tangkapan: 2","TextLabel",oddsPage)~=nil,"delayed enrichment never adds a fish")
 rareGui:Destroy()
@@ -662,7 +692,7 @@ click("Reset Statistik Sesi")
 catchOdds("Mythical Baseline",600000,"Mythical")
 notify.OnClientEvent:Fire("GotFish",{uid="inventoryCatch",baseName="Inventory Secret",rarity="Secret",mutation="Normal"}); step(0)
 getAll.serverCallback=function() return {
-	{uid="inventoryCatch",nama="Inventory Secret",rarity="Secret",mutasi="Normal",chance="1M"},
+	{uid="inventoryCatch",nama="Inventory Secret",rarity="Secret",mutasi="Normal",chance=0.000001},
 	{uid="preexistingFish",nama="Old Inventory Fish",rarity="Secret",mutasi="Normal",chance="100M"},
 } end
 step(9)

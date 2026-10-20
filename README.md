@@ -78,8 +78,12 @@ riwayat; 100 kandidat dengan peluang terbesar dipertahankan untuk koreksi rekor.
 
 Pembacaan peluang dilakukan melalui:
 
-- Field `chance`/`Chance` pada event `GotFish`. Format angka, `1 in N`, `1 dari N`,
-  `1/N`, `1:N`, pemisah ribuan, dan akhiran K/M/B didukung. Event tambahan dengan
+- Field `chance`/`Chance` pada event `GotFish`. Angka probabilitas `0 < p <= 1`
+  dikonversi menjadi **1 dari 1/p**: `0.0002` menjadi **5K**, sedangkan
+  `0.00028571428571428574` menjadi **3.5K**. Data ini langsung mengisi statistik
+  dan riwayat tanpa menunggu popup atau ID tangkapan. Angka penyebut di atas 1,
+  teks `1 in N`, `1 dari N`, `1/N`, `1:N`, pemisah ribuan, dan akhiran K/M/B
+  tetap didukung. Event tambahan dengan
   ID tangkapan sama boleh melengkapi atau mengoreksi peluang tanpa dihitung ulang.
 - Popup game yang cocok dengan nama, mutasi, dan berat jika tersedia. Pembaca
   menunggu hingga 20 detik untuk animasi yang terlambat, menelusuri sampai 10 tingkat
@@ -88,6 +92,7 @@ Pembacaan peluang dilakukan melalui:
   memperbarui peluang yang semula terbaca.
 - Pemeriksaan inventaris untuk ID tangkapan sesi yang peluangnya masih kosong,
   maksimal tiga percobaan per tangkapan dengan interval worker delapan detik.
+  Field peluang numerik memakai konversi probabilitas yang sama dengan event.
   Hanya field peluang yang benar-benar tersedia digunakan. Ikan inventaris lama
   tidak diimpor sebagai tangkapan sesi. Pemeriksaan ditunda ketika jual/favorite sibuk.
 
@@ -132,7 +137,10 @@ server game. Pengaturan pelindung lama diabaikan dan tidak disimpan kembali.
 
 ## Validasi
 
-Kompilasi Luau dan **144 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **158 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Regresi probabilitas memakai nilai persis dari diagnostik Emberback Spider Crab
+dan Enchanted Angelfish tanpa popup/ID, peringkat 600K hingga 200M, batas probabilitas,
+nilai tidak valid, serta konversi pada pembaruan ID dan inventaris.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
