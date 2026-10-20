@@ -45,6 +45,8 @@ Jika tidak tersedia, pengaturan sesi tetap dapat dipakai dan status penyimpanan 
 Webhook opsional memerlukan fungsi HTTP request yang kompatibel dan URL yang Anda isi sendiri.
 
 Gunakan tombol X untuk mengakhiri sesi. Tombol minus dan tombol DH hanya mengubah tampilan menu.
+**Anti-AFK** dan **Auto Join Galatama** otomatis ON saat hub dibuka atau konfigurasi
+direset. Keduanya tetap dapat dimatikan melalui tombol masing-masing.
 Jika versi sumber lama sudah berjalan tanpa mekanisme cleanup, masuk ulang ke game sekali sebelum memakai versi ini.
 
 Tidak ada fitur yang menjamin ikan atau mutasi tertentu dalam sekali pancing.
@@ -114,7 +116,7 @@ ini tidak membatalkan permintaan jual yang sudah dikirim atau penjualan manual.
 
 ## Validasi
 
-Kompilasi Luau dan **134 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **137 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.

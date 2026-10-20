@@ -203,7 +203,7 @@ local function ResetConfig()
 		for name, value in pairs(defaults) do State[key][name] = value end
 	end
 	for _, config in pairs(State.SpotLoopConfig or {}) do config.Timer = "10"; config.Enabled = false end
-	for _, toggle in pairs(App.toggles) do toggle:Set(false) end
+	for _, toggle in pairs(App.toggles) do toggle:Set(toggle.default == true) end
 	App.fishingEpoch += 1
 	if App.RefreshConfig then App.RefreshConfig() end
 	return SaveConfig()
@@ -1171,7 +1171,7 @@ App.Connect(SettingsBtn.MouseButton1Click, function() HideAll(); SettingsPage.Vi
 App.Connect(CreditsBtn.MouseButton1Click, function() HideAll(); CreditsPage.Visible = true end)
 
 
-local function AddToggle(parent, text, callback)
+local function AddToggle(parent, text, callback, defaultEnabled)
 	local b = Instance.new("TextButton", parent)
 	b.Size = UDim2.new(1,0,0,35)
 	b.TextColor3 = Color3.new(1,1,1)
@@ -1179,7 +1179,7 @@ local function AddToggle(parent, text, callback)
 	b.TextSize = 13
 	b.TextXAlignment = Enum.TextXAlignment.Left
 	Instance.new("UICorner", b)
-	local controller = {value = false}
+	local controller = {value = false, default = defaultEnabled == true}
 	function controller:Set(value, silent)
 		local changed = self.value ~= value
 		self.value = value
@@ -1188,7 +1188,7 @@ local function AddToggle(parent, text, callback)
 		if changed and not silent then callback(value) end
 	end
 	App.toggles[text] = controller
-	controller:Set(false, true)
+	controller:Set(controller.default)
 	App.Connect(b.MouseButton1Click, function() controller:Set(not controller.value) end)
 	return controller
 end
@@ -1697,7 +1697,7 @@ App.Connect(TeleportGalatamaBtn.MouseButton1Click, function()
 	pcall(function() LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-8008.12744, 1227.96838, -6091.92627) + Vector3.new(0, 5, 0) end)
 end)
 
-AddToggle(GalatamaPage, "Aktifkan Auto Join Galatama", function(v) State.AutoGalatamaRunning = v end)
+AddToggle(GalatamaPage, "Aktifkan Auto Join Galatama", function(v) State.AutoGalatamaRunning = v end, true)
 App.Spawn(function()
 	while App.Wait(0.2) do
 		if State.AutoGalatamaRunning then
@@ -2008,7 +2008,7 @@ App.Connect(SpeedBox.FocusLost, function()
 	if humanoid then App.Set("speed",humanoid,"WalkSpeed",num) end
 end)
 
-AddToggle(PlayerPage, "Anti-AFK", function(v) State.AntiAFKRunning = v end)
+AddToggle(PlayerPage, "Anti-AFK", function(v) State.AntiAFKRunning = v end, true)
 App.Connect(LocalPlayer.Idled, function()
 	if State.AntiAFKRunning then VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new(0,0)) end
 end)
