@@ -584,7 +584,22 @@ check(findText("Terakhir: Capital Chance | Normal | Rare | 1 dari 4K","TextLabel
 for _,value in ipairs({0,-0.01,math.huge,-math.huge,0/0,1e-320,"1/0.5"}) do catchOdds("Invalid Probability",value,"Common") end
 check(findText("Peluang terbaca: 13/20","TextLabel",oddsPage)~=nil,"invalid probabilities and overflowing reciprocals stay unresolved")
 click("Lihat / Salin Diagnostik Statistik")
-check(findText("diagnostik statistik v2 (probabilitas event)","TextBox",oddsPage)~=nil,"diagnostic identifies probability parser version")
+check(findText("diagnostik statistik v2.1 (probabilitas event)","TextBox",oddsPage)~=nil,"diagnostic identifies probability parser version")
+check(findText("DARUS HUB  /  v2.1","TextLabel")~=nil,"running build visible without opening diagnostics")
+click("Reset Statistik Sesi")
+-- Replay the five newest records supplied in the user's v1 diagnostic.
+for _,case in ipairs({
+	{"Enchanted Angelfish",0.0002,"Rare","Normal","5K"},
+	{"Pink Dolphin",0.0002,"Rare","Normal","5K"},
+	{"Sparkly Eel",0.0025,"Rare","Holographic","400"},
+	{"Darwin Clownfish",0.0013333333333333333,"UnCommon","Normal","750"},
+	{"Saturnpuff",0.0022222222222222222,"Rare","Normal","450"},
+}) do
+	notify.OnClientEvent:Fire("GotFish",{baseName=case[1],chance=case[2],rarity=case[3],mutation=case[4],big=true}); step(0)
+	check(findText("Terakhir: " .. case[1] .. " | " .. case[4] .. " | " .. case[3] .. " | 1 dari " .. case[5],"TextLabel",oddsPage)~=nil,"latest diagnostic resolves without popup: " .. case[1])
+end
+check(findText("Peluang terbaca: 5/5   |   Belum terbaca: 0","TextLabel",oddsPage)~=nil,"all supplied diagnostic samples resolved")
+check(oddsPage:FindFirstChild("SessionMetrics") and oddsPage:FindFirstChild("RarestCatch") and oddsPage:FindFirstChild("LatestCatch"),"dashboard separates metrics and catch cards")
 click("Reset Statistik Sesi")
 
 local gamePopup=Instance.new("ScreenGui",playerGui)
@@ -598,11 +613,12 @@ local function popupCatch(name, mutation, weight, text, odds, direct, rarity)
 	step(0.5)
 end
 popupCatch("Manta Ray","Stone",157.97,"Stone Big Manta Ray (157.97kg)","1 in 50.0K")
-check(findText("Ikan terlangka: Manta Ray | Stone | Secret | 1 dari 50K (tampilan game)","TextLabel",oddsPage)~=nil,"screenshot popup odds matched to catch")
+check(findText("Ikan terlangka: Manta Ray | Stone | Secret | 1 dari 50K","TextLabel",oddsPage)~=nil,"screenshot popup odds matched to catch")
+check(not pcall(findText,"(tampilan game)","TextLabel",oddsPage),"popup source suffix removed from cards and history")
 check(findText("Tangkapan: 1","TextLabel",oddsPage)~=nil,"popup enriches catch without incrementing count")
 popupCatch("Great Whale","Normal",500,"Big Great Whale (500.00kg)","<font color='#fff'>1 in 950.0K</font>")
 popupCatch("Rare Secret","Normal",100,"Big Rare Secret (100.00kg)","1 in 20.0M")
-check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20M (tampilan game)","TextLabel",oddsPage)~=nil,"popup 20M replaces popup 950K")
+check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20M","TextLabel",oddsPage)~=nil,"popup 20M replaces popup 950K")
 check(findText("Tangkapan: 3","TextLabel",oddsPage)~=nil,"popup tracking does not duplicate catches")
 popupCatch("Direct Odds","Normal",1,"Direct Odds (1.00kg)","1 in 999B","1 in 30M")
 check(findText("Ikan terlangka: Direct Odds | Normal | Secret | 1 dari 30M","TextLabel",oddsPage)~=nil,"event odds take precedence over popup")
@@ -709,8 +725,8 @@ catchOdds("More Precise",1000200)
 catchOdds("Less Precise",1000100)
 check(findText("Ikan terlangka: More Precise","TextLabel",oddsPage)~=nil,"ranking uses unrounded numbers despite identical compact display")
 for index=1,101 do catchOdds("History Fish " .. index,10) end
-local history=findText("#105  History Fish 101","TextLabel",oddsPage).Text
-check(not history:find("#1  ",1,true) and history:find("#6  ",1,true),"history bounded to 100 most recent catches")
+local history=findText("#105  History Fish 101","TextLabel",oddsPage).Parent
+check(not pcall(findText,"#1  ","TextLabel",history) and findText("#6  ","TextLabel",history),"history bounded to 100 most recent catches")
 check(findText("Ikan terlangka: More Precise","TextLabel",oddsPage)~=nil,"best session record survives eviction from visible history")
 catchOdds("Unknown Secret",nil,"Secret")
 check(findText("#106  Unknown Secret","TextLabel",oddsPage)~=nil,"unread rare catch remains visible in history")

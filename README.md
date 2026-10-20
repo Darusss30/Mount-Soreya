@@ -4,6 +4,7 @@ Darus Hub dikembangkan dari **`UBEYHUB.lua`**, bukan `UbeyHubV3.lua`.
 Sumber: [UbeyDev/Ubey-Hub — UBEYHUB.lua](https://github.com/UbeyDev/Ubey-Hub/blob/7152183/UBEYHUB.lua).
 Berkas utama adalah [`DarusHub.lua`](./DarusHub.lua).
 Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabase.
+Versi saat ini: **2.1**, terlihat di bagian atas hub dan laporan diagnostik.
 
 ## Fitur
 
@@ -45,6 +46,10 @@ Jika tidak tersedia, pengaturan sesi tetap dapat dipakai dan status penyimpanan 
 Webhook opsional memerlukan fungsi HTTP request yang kompatibel dan URL yang Anda isi sendiri.
 
 Gunakan tombol X untuk mengakhiri sesi. Tombol minus dan tombol DH hanya mengubah tampilan menu.
+Untuk memperbarui, ambil [DarusHub.lua terbaru](https://raw.githubusercontent.com/Darusss30/Mount-Soreya/main/DarusHub.lua),
+tutup sesi lama, lalu jalankan berkas baru. Pembaruan di GitHub tidak mengganti kode
+yang sudah berjalan. Pastikan bagian atas hub menunjukkan **v2.1**; diagnostik
+bertanda **v1** masih berasal dari versi sebelum perbaikan probabilitas.
 **Anti-AFK** dan **Auto Join Galatama** otomatis ON saat hub dibuka atau konfigurasi
 direset. Keduanya tetap dapat dimatikan melalui tombol masing-masing.
 Auto Join menunggu jika `Remote/Galatama/Ikut` belum tersedia. Pemanggilan mengikuti
@@ -65,6 +70,10 @@ Statistik menampilkan jumlah tangkapan, durasi, ikan per menit, Secret/Forgotten
 ikan terakhir, ikan terlangka, serta **Peluang terbaca: X/Y**. Peringkat hanya
 membandingkan peluang yang sudah terbaca: **Secret 1M mengalahkan Mythical 600K**,
 dan **20M mengalahkan 950K**. Kategori tidak menggantikan angka peluang.
+Ringkasan memakai tiga kartu metrik, kartu ikan terlangka berwarna emas, dan kartu
+ikan terakhir. Riwayat memakai baris terpisah yang menyesuaikan tinggi teks.
+Tombol reset dan diagnostik berada di bawah riwayat; menu aktif diberi warna penanda.
+Keterangan sumber popup tidak lagi ditambahkan ke nama ikan atau angka peluang.
 
 Angka ditampilkan singkat: `4000` menjadi **4K**, `1000000` menjadi **1M**, dan
 `2500000000` menjadi **2.5B**. Tampilan memakai maksimal tiga angka desimal;
@@ -99,7 +108,7 @@ Pembacaan peluang dilakukan melalui:
 Popup harus memiliki judul berakhiran `(berat kg)` dan satu nilai peluang yang
 unik pada kelompok UI yang sama. Teks RichText didukung. Popup tersembunyi, lama,
 berbeda identitas, atau ambigu tidak digunakan. Contoh `Stone Big Manta Ray (157.97kg)`
-dengan `1 in 50.0K` ditampilkan sebagai **1 dari 50K (tampilan game)**. Nilai ini
+dengan `1 in 50.0K` ditampilkan sebagai **1 dari 50K**. Nilai ini
 mengikuti angka tampilan game yang mungkin sudah dibulatkan; event/inventaris
 menggantikan pembacaan popup jika memberikan data peluang yang lebih lengkap.
 
@@ -137,10 +146,14 @@ server game. Pengaturan pelindung lama diabaikan dan tidak disimpan kembali.
 
 ## Validasi
 
-Kompilasi Luau dan **158 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **167 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Regresi probabilitas memakai nilai persis dari diagnostik Emberback Spider Crab
 dan Enchanted Angelfish tanpa popup/ID, peringkat 600K hingga 200M, batas probabilitas,
 nilai tidak valid, serta konversi pada pembaruan ID dan inventaris.
+Lima sampel diagnostik tambahan (Angelfish, Pink Dolphin, Holographic Sparkly Eel,
+Darwin Clownfish, Saturnpuff) diuji tanpa popup, termasuk kelengkapan peluang 5/5.
+Pemeriksaan UI mencakup kartu statistik, versi yang terlihat, penghapusan keterangan
+sumber popup, dan batas 100 baris riwayat; rendering Roblox belum diuji langsung.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.

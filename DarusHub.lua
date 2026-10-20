@@ -27,11 +27,12 @@ for _, name in ipairs({"DarusHub", "DarusHubCollect"}) do
 	end
 end
 local State = {}
-local App = {running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
+local App = {version = "2.1", running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
 	dragSuppressed = {}, pending = {}, toggles = {}, fishingEpoch = 0, lastError = {}}
 local Gui = Instance.new("ScreenGui", PlayerGui)
 Gui.Name = "DarusHub"
 Gui.ResetOnSpawn = false
+Gui:SetAttribute("DarusVersion", App.version)
 
 function App.Report(message)
 	if not App.running then return end
@@ -339,7 +340,7 @@ function App.SetCatchOdds(record, chance, source)
 	record.chance = chance
 	record.source = source
 	record.description = record.fish.Name .. " | " .. record.fish.Mutation .. " | " .. record.fish.Rarity
-		.. (chance and (" | 1 dari " .. App.FormatChance(chance) .. (source == "popup" and " (tampilan game)" or "")) or " | menunggu data peluang")
+		.. (chance and (" | 1 dari " .. App.FormatChance(chance)) or " | menunggu data peluang")
 	local stats = record.stats
 	if stats.lastRecord == record then stats.last = record.description end
 	if chance then
@@ -373,7 +374,7 @@ end
 
 function App.BuildStatsDiagnostic()
 	local stats = App.catchStats
-	local lines = {"Darus Hub diagnostik statistik v2 (probabilitas event)", "Tangkapan=" .. stats.total .. "; peluang=" .. stats.known,
+	local lines = {"Darus Hub diagnostik statistik v" .. App.version .. " (probabilitas event)", "Tangkapan=" .. stats.total .. "; peluang=" .. stats.known,
 		"Inventaris: " .. App.remoteStatus.inventory, "Galatama: " .. App.remoteStatus.galatama,
 		"Terlangka terbaca: " .. stats.best, "Secret/Forgotten terbaru (maks 30):"}
 	for _, record in ipairs(stats.rareRecords) do
@@ -1106,6 +1107,15 @@ Content.Parent = Main
 Content.Position = UDim2.new(0,150,0,30)
 Content.Size = UDim2.new(1,-160,1,-64)
 Content.BackgroundTransparency = 1
+local BuildLabel = Instance.new("TextLabel", Main)
+BuildLabel.Position = UDim2.new(0, 150, 0, 8)
+BuildLabel.Size = UDim2.new(0, 160, 0, 18)
+BuildLabel.BackgroundTransparency = 1
+BuildLabel.Font = Enum.Font.GothamMedium
+BuildLabel.TextSize = 11
+BuildLabel.TextXAlignment = Enum.TextXAlignment.Left
+BuildLabel.TextColor3 = Color3.fromRGB(128, 159, 182)
+BuildLabel.Text = "DARUS HUB  /  v" .. App.version
 App.status = Instance.new("TextLabel", Main)
 App.status.Size = UDim2.new(1,-160,0,28)
 App.status.Position = UDim2.new(0,150,1,-30)
@@ -1129,6 +1139,7 @@ end)
 
 App.Connect(CloseBtn.MouseButton1Click, function() Gui:Destroy() end)
 
+App.navButtons = {}
 local function CreateNavButton(text, yPos)
 	local btn = Instance.new("TextButton")
 	btn.Parent = Sidebar
@@ -1141,10 +1152,19 @@ local function CreateNavButton(text, yPos)
 	btn.TextSize = 12
 	local corner = Instance.new("UICorner")
 	corner.Parent = btn
+	table.insert(App.navButtons, btn)
+	App.Connect(btn.MouseButton1Click, function()
+		for _, button in ipairs(App.navButtons) do
+			button.BackgroundColor3 = button == btn and Color3.fromRGB(24, 74, 96) or Color3.fromRGB(35, 35, 45)
+			button.TextColor3 = button == btn and Color3.fromRGB(112, 226, 242) or Color3.new(1, 1, 1)
+		end
+	end)
 	return btn
 end
 
 local HomeBtn = CreateNavButton("Fishing & Sell", 60)
+HomeBtn.BackgroundColor3 = Color3.fromRGB(24, 74, 96)
+HomeBtn.TextColor3 = Color3.fromRGB(112, 226, 242)
 local FavoriteBtn = CreateNavButton("⭐ Favorite", 95)
 local GalatamaBtn = CreateNavButton("Galatama", 130)
 local TeleportShopBtn = CreateNavButton("Teleport Shop", 165)
@@ -1174,7 +1194,7 @@ local function MakePage()
 	l.Padding = UDim.new(0, 8)
 	local order = 0
 	App.Connect(f.ChildAdded, function(child)
-		if child:IsA("GuiObject") then order += 1; child.LayoutOrder = order end
+		if child.Parent == f and child:IsA("GuiObject") then order += 1; child.LayoutOrder = order end
 	end)
 	return f
 end
@@ -1251,20 +1271,99 @@ do
 	local function row(class, text, height)
 		local item = Instance.new(class, page)
 		item.Size = UDim2.new(1, -8, 0, height or 38)
-		item.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-		item.TextColor3 = Color3.new(1, 1, 1)
+		item.BorderSizePixel = 0
+		item.BackgroundColor3 = Color3.fromRGB(27, 32, 43)
+		item.TextColor3 = Color3.fromRGB(223, 232, 241)
 		item.Font = Enum.Font.Gotham
 		item.TextSize = 12
 		item.TextWrapped = true
+		item.TextXAlignment = Enum.TextXAlignment.Left
 		item.Text = text
-		Instance.new("UICorner", item)
+		local corner = Instance.new("UICorner", item)
+		corner.CornerRadius = UDim.new(0, 10)
+		local padding = Instance.new("UIPadding", item)
+		padding.PaddingLeft, padding.PaddingRight = UDim.new(0, 12), UDim.new(0, 12)
+		padding.PaddingTop, padding.PaddingBottom = UDim.new(0, 8), UDim.new(0, 8)
 		return item
 	end
-	row("TextLabel", "STATISTIK SESI")
-	local statsLabel = row("TextLabel", "", 150)
+	local heading = row("TextLabel", "STATISTIK SESI", 32)
+	heading.BackgroundTransparency = 1
+	heading.Font = Enum.Font.GothamBold
+	heading.TextSize = 14
+	local metrics = Instance.new("Frame", page)
+	metrics.Name = "SessionMetrics"
+	metrics.Size = UDim2.new(1, -8, 0, 54)
+	metrics.BackgroundTransparency = 1
+	local function metric(index, color)
+		local label = row("TextLabel", "", 54)
+		label.Parent = metrics
+		label.Position = UDim2.new((index - 1) / 3, index > 1 and 3 or 0, 0, 0)
+		label.Size = UDim2.new(1 / 3, -5, 1, 0)
+		label.Font = Enum.Font.GothamMedium
+		label.TextSize = 13
+		label.TextColor3 = color
+		return label
+	end
+	local totalLabel = metric(1, Color3.fromRGB(106, 226, 236))
+	local durationLabel = metric(2, Color3.fromRGB(223, 232, 241))
+	local rateLabel = metric(3, Color3.fromRGB(152, 226, 182))
+	local bestLabel = row("TextLabel", "", 76)
+	bestLabel.Name = "RarestCatch"
+	bestLabel.AutomaticSize = Enum.AutomaticSize.Y
+	bestLabel.Font = Enum.Font.GothamMedium
+	bestLabel.TextSize = 14
+	bestLabel.BackgroundColor3 = Color3.fromRGB(44, 37, 28)
+	bestLabel.TextColor3 = Color3.fromRGB(255, 216, 144)
+	local accent = Instance.new("UIStroke", bestLabel)
+	accent.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	accent.Color = Color3.fromRGB(125, 94, 49)
+	accent.Transparency = 0.4
+	local lastLabel = row("TextLabel", "", 56)
+	lastLabel.Name = "LatestCatch"
+	lastLabel.AutomaticSize = Enum.AutomaticSize.Y
+	local rarityLabel = row("TextLabel", "", 38)
+	rarityLabel.TextColor3 = Color3.fromRGB(197, 170, 249)
+	local coverageLabel = row("TextLabel", "", 64)
+	coverageLabel.TextColor3 = Color3.fromRGB(153, 177, 196)
+	local historyHeading = row("TextLabel", "RIWAYAT 100 TANGKAPAN TERAKHIR", 32)
+	historyHeading.BackgroundTransparency = 1
+	historyHeading.Font = Enum.Font.GothamBold
+	historyHeading.TextSize = 11
+	local historyFrame = Instance.new("ScrollingFrame", page)
+	historyFrame.Name = "CatchHistory"
+	historyFrame.Size = UDim2.new(1, -8, 0, 240)
+	historyFrame.BackgroundTransparency = 1
+	historyFrame.BorderSizePixel = 0
+	historyFrame.CanvasSize = UDim2.fromOffset(0, 0)
+	historyFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	historyFrame.ScrollBarThickness = 3
+	historyFrame.ScrollBarImageColor3 = Color3.fromRGB(70, 129, 151)
+	local historyLayout = Instance.new("UIListLayout", historyFrame)
+	historyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	historyLayout.Padding = UDim.new(0, 6)
+	local historyRows = {}
+	local emptyHistory = row("TextLabel", "Belum ada tangkapan.", 45)
+	emptyHistory.Parent = historyFrame
+	-- Reuse up to 100 rows; each row grows to fit its actual wrapped text.
+	local function historyRow(index)
+		if not historyRows[index] then
+			local label = row("TextLabel", "", 0)
+			label.Parent = historyFrame
+			label.Size = UDim2.new(1, -8, 0, 0)
+			label.AutomaticSize = Enum.AutomaticSize.Y
+			label.TextYAlignment = Enum.TextYAlignment.Top
+			historyRows[index] = label
+		end
+		return historyRows[index]
+	end
 	local reset = row("TextButton", "Reset Statistik Sesi")
+	reset.TextXAlignment = Enum.TextXAlignment.Center
+	reset.BackgroundColor3 = Color3.fromRGB(49, 33, 40)
+	reset.TextColor3 = Color3.fromRGB(242, 172, 179)
 	App.Connect(reset.MouseButton1Click, function() App.ResetCatchStats(); App.RefreshCatchStats() end)
 	local diagnosticButton = row("TextButton", "Lihat / Salin Diagnostik Statistik")
+	diagnosticButton.TextXAlignment = Enum.TextXAlignment.Center
+	diagnosticButton.BackgroundColor3 = Color3.fromRGB(24, 62, 79)
 	local diagnosticBox = row("TextBox", "", 200)
 	diagnosticBox.Name = "StatsDiagnostic"
 	diagnosticBox.Visible = false
@@ -1280,33 +1379,35 @@ do
 		local copied = type(setclipboard) == "function" and pcall(setclipboard, report)
 		App.Report(copied and "Diagnostik statistik tersalin. Tempelkan ke percakapan untuk pemeriksaan." or "Diagnostik ditampilkan di kotak teks; clipboard tidak tersedia.")
 	end)
-	row("TextLabel", "Ikan terlangka memakai peluang 1 dari N: makin besar N, makin langka. Data peluang yang tidak tersedia tidak masuk peringkat. Statistik sejak hub dibuka/reset.", 85)
-	row("TextLabel", "RIWAYAT 100 TANGKAPAN TERAKHIR")
-	local historyFrame = Instance.new("ScrollingFrame", page)
-	historyFrame.Size = UDim2.new(1, -8, 0, 260)
-	historyFrame.BackgroundTransparency = 1
-	historyFrame.CanvasSize = UDim2.fromOffset(0, 0)
-	historyFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	historyFrame.ScrollBarThickness = 4
-	local historyLabel = row("TextLabel", "Belum ada tangkapan.", 45)
-	historyLabel.Parent = historyFrame
-	historyLabel.TextXAlignment = Enum.TextXAlignment.Left
-	historyLabel.TextYAlignment = Enum.TextYAlignment.Top
+	local note = row("TextLabel", "Semakin besar angka 1 dari N, semakin langka ikannya. Statistik dihitung sejak hub dibuka atau direset.", 60)
+	note.BackgroundTransparency = 1
+	note.TextSize = 11
+	note.TextColor3 = Color3.fromRGB(130, 149, 168)
 	function App.RefreshCatchStats()
 		local stats = App.catchStats
 		local elapsed = math.max(0, os.clock() - stats.started)
 		local rate = elapsed > 0 and stats.total * 60 / elapsed or 0
-		statsLabel.Text = string.format("Tangkapan: %d | Durasi: %02d:%02d | %.2f ikan/menit\nSecret: %d | Forgotten: %d\nIkan terlangka: %s\nTerakhir: %s\nPeluang terbaca: %d/%d (peringkat dari data terbaca)",
-			stats.total, math.floor(elapsed / 60), math.floor(elapsed % 60), rate,
-			stats.byRarity.secret or 0, stats.byRarity.forgotten or 0, stats.best, stats.last, stats.known, stats.total)
-		statsLabel.Text ..= string.format("\nPeluang Secret: %d/%d | Forgotten: %d/%d", stats.knownRarity.secret or 0, stats.byRarity.secret or 0,
+		totalLabel.Text = "Tangkapan: " .. stats.total
+		durationLabel.Text = string.format("Durasi: %02d:%02d", math.floor(elapsed / 60), math.floor(elapsed % 60))
+		rateLabel.Text = string.format("%.2f ikan/menit", rate)
+		bestLabel.Text = "Ikan terlangka: " .. stats.best
+		lastLabel.Text = "Terakhir: " .. stats.last
+		rarityLabel.Text = string.format("Secret: %d   |   Forgotten: %d", stats.byRarity.secret or 0, stats.byRarity.forgotten or 0)
+		coverageLabel.Text = string.format("Peluang terbaca: %d/%d   |   Belum terbaca: %d\nPeluang Secret: %d/%d | Forgotten: %d/%d", stats.known, stats.total, stats.total - stats.known,
+			stats.knownRarity.secret or 0, stats.byRarity.secret or 0,
 			stats.knownRarity.forgotten or 0, stats.byRarity.forgotten or 0)
-		local lines = {}
-		for _, record in ipairs(stats.history) do
-			table.insert(lines, "#" .. record.index .. "  " .. record.description)
+		emptyHistory.Visible = #stats.history == 0
+		for index, record in ipairs(stats.history) do
+			local label = historyRow(index)
+			label.LayoutOrder = index
+			label.Visible = true
+			label.Text = "#" .. record.index .. "  " .. record.description
+			label.TextColor3 = record.chance and Color3.fromRGB(223, 232, 241) or Color3.fromRGB(245, 191, 126)
 		end
-		historyLabel.Text = #lines > 0 and table.concat(lines, "\n\n") or "Belum ada tangkapan."
-		historyLabel.Size = UDim2.new(1, -8, 0, math.max(45, #lines * 66))
+		for index = #stats.history + 1, #historyRows do
+			historyRows[index].Visible = false
+			historyRows[index].Text = ""
+		end
 	end
 	App.configViews = App.configViews or {}
 	table.insert(App.configViews, function()
