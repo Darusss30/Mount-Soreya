@@ -154,7 +154,7 @@ State.Config = {
 	WebhookUrl = ""
 }
 
-App.catchDefaults = {TargetName = "", TargetMutation = "", ProtectNames = "",
+App.catchDefaults = {ProtectNames = "",
 	ProtectMutations = "", ProtectRarities = "Secret, Forgotten"}
 for key, value in pairs(App.catchDefaults) do State.Config[key] = value end
 
@@ -281,17 +281,10 @@ local hookedRemotes = setmetatable({}, {__mode = "k"})
 App.catchRevision = 0
 App.seenCatchIds, App.catchIdOrder = {}, {}
 function App.ResetCatchStats()
-	App.catchStats = {started = os.clock(), total = 0, byRarity = {}, bestChance = 0, best = "Belum ada data peluang", last = "-"}
+	App.catchStats = {started = os.clock(), total = 0, known = 0, history = {}, ranking = {}, byRarity = {}, bestChance = 0, best = "Belum ada data peluang", last = "-"}
 	App.pendingCatchOdds = {}
 end
 App.ResetCatchStats()
-
-function App.TargetMatches(fish)
-	local name, mutation = App.CleanText(State.Config.TargetName):lower(), App.CleanText(State.Config.TargetMutation):lower()
-	return (name ~= "" or mutation ~= "")
-		and (name == "" or App.CleanText(fish.Name):lower() == name)
-		and (mutation == "" or App.CleanText(fish.Mutation):lower() == mutation)
-end
 
 function App.InFishList(value, list)
 	local normalized = App.CleanText(value):lower()
@@ -303,7 +296,7 @@ function App.InFishList(value, list)
 end
 
 function App.ProtectedFish(fish)
-	return fish.IsFavorited or App.TargetMatches(fish)
+	return fish.IsFavorited
 		or App.InFishList(fish.Name, State.Config.ProtectNames)
 		or App.InFishList(fish.Mutation, State.Config.ProtectMutations)
 		or App.InFishList(fish.Rarity, State.Config.ProtectRarities)
@@ -340,14 +333,36 @@ function App.ChanceDenominator(value)
 	return number
 end
 
+function App.FormatChance(value)
+	local scale, suffix = 1, ""
+	if value >= 1e9 then scale, suffix = 1e9, "B"
+	elseif value >= 1e6 then scale, suffix = 1e6, "M"
+	elseif value >= 1e3 then scale, suffix = 1e3, "K" end
+	local text = string.format("%.3f", value / scale):gsub("0+$", ""):gsub("%.$", "")
+	return text .. suffix
+end
+
 function App.SetCatchOdds(record, chance, source)
 	if record.stats ~= App.catchStats then return end
+	if chance and not record.chance then record.stats.known += 1 end
 	record.chance = chance
+	record.source = source
 	record.description = record.fish.Name .. " | " .. record.fish.Mutation .. " | " .. record.fish.Rarity
-		.. (chance and (" | 1 dari " .. string.format("%.15g", chance) .. (source == "popup" and " (tampilan game)" or "")) or " | menunggu data peluang")
+		.. (chance and (" | 1 dari " .. App.FormatChance(chance) .. (source == "popup" and " (tampilan game)" or "")) or " | menunggu data peluang")
 	local stats = record.stats
 	if stats.lastRecord == record then stats.last = record.description end
-	if chance and chance > stats.bestChance then stats.bestChance, stats.best = chance, record.description end
+	if chance then
+		local prior = table.find(stats.ranking, record)
+		if prior then table.remove(stats.ranking, prior) end
+		table.insert(stats.ranking, record)
+		table.sort(stats.ranking, function(a, b)
+			if a.chance == b.chance then return a.index < b.index end
+			return a.chance > b.chance
+		end)
+		if #stats.ranking > 100 then table.remove(stats.ranking) end
+		local best = stats.ranking[1]
+		stats.bestChance, stats.best = best.chance, best.description
+	end
 	if App.RefreshCatchStats then App.RefreshCatchStats() end
 end
 
@@ -403,21 +418,26 @@ do
 			local title, weight = popupTitle(titleState.text)
 			if not title then continue end
 			local parent = titleLabel.Parent
-			for _ = 1, 3 do
+			for _ = 1, 10 do
 				if not parent or parent == PlayerGui then break end
 				local children = parent:GetDescendants()
-				if #children > 40 then break end
 				local oddsLabel, odds, titleCount, oddsCount = nil, nil, 0, 0
+				local titles, values = {}, {}
 				for _, item in ipairs(children) do
 					local state = snapshots[item]
 					if state and state.visible then
-						if popupTitle(state.text) then titleCount += 1 end
+						if popupTitle(state.text) and not titles[state.text] then titles[state.text] = true; titleCount += 1 end
 						if state.text:match("^1%s+in%s+") or state.text:match("^1%s+dari%s+") or state.text:match("^1%s*[/:]") then
 							local value = App.ChanceDenominator(state.text)
-							if value then oddsLabel, odds = item, value; oddsCount += 1 end
+							if value then
+								if not values[value] then values[value] = true; oddsCount += 1 end
+								if not oddsLabel or state.changed > snapshots[oddsLabel].changed then oddsLabel, odds = item, value end
+							end
 						end
 					end
+					if titleCount > 1 or oddsCount > 1 then break end
 				end
+				if titleCount > 1 or oddsCount > 1 then break end
 				if oddsCount > 0 then
 					if oddsCount == 1 and titleCount == 1 then
 						local changed = math.max(titleState.changed, snapshots[oddsLabel].changed)
@@ -425,14 +445,16 @@ do
 						if consumed[titleLabel] ~= signature and os.clock() - changed >= 0.2 then
 							local match, count = nil, 0
 							for _, record in ipairs(App.pendingCatchOdds) do
-								if titleState.changed >= record.at - 0.3 and snapshots[oddsLabel].changed >= record.at - 0.3
-									and changed <= record.at + 3
+								local samePopup = record.popupLabel == titleLabel and record.popupTitleTime == titleState.changed
+								if (not record.resolved or samePopup) and titleState.changed >= record.at - 0.3 and snapshots[oddsLabel].changed >= record.at - 0.3
+									and changed <= record.at + 20
 									and matches(record, title, weight) then match = record; count += 1 end
 							end
 							if count == 1 then
 								consumed[titleLabel] = signature
-								if not match.chance and not match.resolved then App.SetCatchOdds(match, odds, "popup") end
+								if not match.chance or match.source == "popup" then App.SetCatchOdds(match, odds, "popup") end
 								match.resolved = true
+								match.popupLabel, match.popupTitleTime = titleLabel, titleState.changed
 							end
 						end
 					end
@@ -446,12 +468,13 @@ do
 	App.Spawn(function()
 		while App.Wait(0.1) do
 			local labels = sample(false)
-			resolve(labels)
+			if #App.pendingCatchOdds > 0 then resolve(labels) end
 			for index = #App.pendingCatchOdds, 1, -1 do
 				local record = App.pendingCatchOdds[index]
-				if os.clock() - record.at > 3.5 then
-					if not record.chance and record.stats == App.catchStats and record.stats.lastRecord == record then
-						record.stats.last = record.description:gsub("menunggu data peluang$", "peluang belum terbaca")
+				if os.clock() - record.at > 20.5 then
+					if not record.chance and record.stats == App.catchStats then
+						record.description = record.description:gsub("menunggu data peluang$", "peluang belum terbaca")
+						if record.stats.lastRecord == record then record.stats.last = record.description end
 						if App.RefreshCatchStats then App.RefreshCatchStats() end
 					end
 					table.remove(App.pendingCatchOdds, index)
@@ -463,15 +486,20 @@ end
 
 function App.RecordCatch(data)
 	local name = App.CleanText(data.baseName or data.originalName or data.nama or data.Name)
-	if name == "" then return false end
 	local id = data.uid or data.UUID
 	if type(id) == "string" or type(id) == "number" then
 		id = tostring(id)
-		if App.seenCatchIds[id] then return false end
-		App.seenCatchIds[id] = true
+		local existing = App.seenCatchIds[id]
+		if existing then
+			local chance = App.ChanceDenominator(data.chance or data.Chance)
+			if existing.stats == App.catchStats and chance then App.SetCatchOdds(existing, chance, "event") end
+			return false
+		end
+		if name == "" then return false end
 		table.insert(App.catchIdOrder, id)
 		if #App.catchIdOrder > 1000 then App.seenCatchIds[table.remove(App.catchIdOrder, 1)] = nil end
-	end
+	else id = nil end
+	if name == "" then return false end
 	local fish = {Name = name, Rarity = App.CleanText(data.rarity or data.Rarity),
 		Mutation = App.CleanText(data.mutation or data.mutasi or data.Mutation)}
 	local chance = App.ChanceDenominator(data.chance or data.Chance)
@@ -482,19 +510,15 @@ function App.RecordCatch(data)
 	stats.total += 1
 	local rarity = fish.Rarity:lower()
 	stats.byRarity[rarity] = (stats.byRarity[rarity] or 0) + 1
-	local record = {fish = fish, stats = stats, at = os.clock(), weight = tonumber(data.weight or data.Weight)}
+	local record = {fish = fish, stats = stats, at = os.clock(), weight = tonumber(data.weight or data.Weight), id = id, index = stats.total}
+	if id then App.seenCatchIds[id] = record end
 	stats.lastRecord = record
+	table.insert(stats.history, 1, record)
+	if #stats.history > 100 then table.remove(stats.history) end
 	App.SetCatchOdds(record, chance, "event")
 	table.insert(App.pendingCatchOdds, record)
-	if #App.pendingCatchOdds > 50 then table.remove(App.pendingCatchOdds, 1) end
-	if State.TargetTracking and App.TargetMatches(fish) then
-		App.toggles["Smart Auto Fishing + Teleport"]:Set(false)
-		App.toggles["Smart Auto Fishing (Di Tempat Saja)"]:Set(false)
-		App.toggles["Auto Sell Timer ke NPC"]:Set(false)
-		App.targetMessage = "TARGET DIDAPAT: " .. stats.last .. ". Auto fishing dan auto sell dihentikan."
-		if App.targetBanner then App.targetBanner.Text = App.targetMessage; App.targetBanner.Visible = true end
-		App.Report(App.targetMessage)
-	end
+	if #App.pendingCatchOdds > 100 then table.remove(App.pendingCatchOdds, 1) end
+
 	if App.RefreshCatchStats then App.RefreshCatchStats() end
 	return true
 end
@@ -558,10 +582,7 @@ local function ListenToFishCatch()
 	end)
 end
 
-App.Spawn(function()
-	task.wait(1)
-	ListenToFishCatch()
-end)
+ListenToFishCatch()
 
 ------------------------------------------------------------------
 -- AUTO RECONNECT
@@ -773,6 +794,11 @@ local function GetServerFishData()
 				complete = true
 				for _, fish in ipairs(data) do
 					if type(fish) == "table" and (fish.uid or fish.UUID) then
+						local record = App.seenCatchIds[tostring(fish.uid or fish.UUID)]
+						local chance = App.ChanceDenominator(fish.chance or fish.Chance)
+						if record and record.stats == App.catchStats and chance and (not record.chance or record.source == "popup") then
+							App.SetCatchOdds(record, chance, "inventory")
+						end
 						local name = fish.baseName or fish.originalName or fish.nama or fish.Name
 						local rarity = fish.rarity or fish.Rarity
 						local mutation = fish.mutasi or fish.mutation or fish.Mutation
@@ -791,6 +817,21 @@ local function GetServerFishData()
 	end)
 	return fishDataList, ok and complete
 end
+
+-- Reconcile only IDs caught in this session; never import older inventory fish.
+App.Spawn(function()
+	while App.Wait(8) do
+		if State.Selling or App.favoriteBusy or App.unfavoriteBusy then continue end
+		local needsRead = false
+		for _, record in ipairs(App.catchStats.history) do
+			if record.id and not record.chance and (record.inventoryAttempts or 0) < 3 then
+				record.inventoryAttempts = (record.inventoryAttempts or 0) + 1
+				needsRead = true
+			end
+		end
+		if needsRead then GetServerFishData() end
+	end
+end)
 
 function App.CheckSaleProtection()
 	local fishList, complete = GetServerFishData()
@@ -1153,7 +1194,7 @@ local function AddToggle(parent, text, callback)
 end
 
 do
-	local nav = CreateNavButton("Target & Statistik", 445)
+	local nav = CreateNavButton("Statistik", 445)
 	Sidebar.CanvasSize = UDim2.fromOffset(0, 485)
 	local page = MakePage()
 	App.catchPage = page
@@ -1170,8 +1211,7 @@ do
 		Instance.new("UICorner", item)
 		return item
 	end
-	row("TextLabel", "TARGET IKAN & STATISTIK SESI")
-	row("TextLabel", "Nama dan mutasi dicocokkan persis, tanpa membedakan huruf besar. Kolom kosong berarti bebas. Ini pemantau hasil, bukan pengatur peluang.", 66)
+	row("TextLabel", "STATISTIK SESI")
 	local fields = {}
 	local function field(key, title)
 		row("TextLabel", title, 26)
@@ -1184,58 +1224,43 @@ do
 			input.Text = State.Config[key]
 		end)
 	end
-	field("TargetName", "Nama ikan target (kosong = semua)")
-	field("TargetMutation", "Mutasi target (kosong = semua)")
-	local targetStatus = row("TextLabel", "Pemantauan target belum aktif.", 60)
-	AddToggle(page, "Pantau Target dan Stop Otomatis", function(enabled)
-		if enabled and App.CleanText(State.Config.TargetName) == "" and App.CleanText(State.Config.TargetMutation) == "" then
-			App.toggles["Pantau Target dan Stop Otomatis"]:Set(false, true)
-			State.TargetTracking = false
-			App.targetMessage = "Isi nama ikan atau mutasi sebelum mengaktifkan target."
-		else
-			State.TargetTracking = enabled
-			App.targetMessage = enabled and "Menunggu tangkapan target dari game..." or "Pemantauan target berhenti."
-		end
-		if App.RefreshCatchStats then App.RefreshCatchStats() end
-	end)
-	row("TextLabel", "PELINDUNG AUTO SELL")
-	row("TextLabel", "Selalu melindungi ikan favorit dan target yang diisi. Jika ada ikan dilindungi, seluruh jual otomatis dibatalkan karena game memakai JualSemua. Tidak melindungi penjualan manual di luar hub.", 80)
-	field("ProtectNames", "Nama ikan dilindungi (pisahkan koma)")
-	field("ProtectMutations", "Mutasi dilindungi (pisahkan koma)")
-	field("ProtectRarities", "Rarity dilindungi (pisahkan koma)")
 	local statsLabel = row("TextLabel", "", 150)
 	local reset = row("TextButton", "Reset Statistik Sesi")
 	App.Connect(reset.MouseButton1Click, function() App.ResetCatchStats(); App.RefreshCatchStats() end)
 	row("TextLabel", "Ikan terlangka memakai peluang 1 dari N: makin besar N, makin langka. Data peluang yang tidak tersedia tidak masuk peringkat. Statistik sejak hub dibuka/reset. Simpan pilihan melalui Settings.", 85)
-	local banner = Instance.new("TextButton", Gui)
-	banner.Name = "TargetCatchNotification"
-	banner.AnchorPoint = Vector2.new(0.5, 0)
-	banner.Position = UDim2.new(0.5, 0, 0, 12)
-	banner.Size = UDim2.new(0.85, 0, 0, 75)
-	banner.BackgroundColor3 = Color3.fromRGB(0, 100, 80)
-	banner.TextColor3 = Color3.new(1, 1, 1)
-	banner.Font = Enum.Font.GothamBold
-	banner.TextSize = 14
-	banner.TextWrapped = true
-	banner.ZIndex = 50
-	banner.Visible = false
-	Instance.new("UICorner", banner)
-	App.targetBanner = banner
-	App.Connect(banner.MouseButton1Click, function() banner.Visible = false end)
+	row("TextLabel", "RIWAYAT 100 TANGKAPAN TERAKHIR")
+	local historyFrame = Instance.new("ScrollingFrame", page)
+	historyFrame.Size = UDim2.new(1, -8, 0, 260)
+	historyFrame.BackgroundTransparency = 1
+	historyFrame.CanvasSize = UDim2.fromOffset(0, 0)
+	historyFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	historyFrame.ScrollBarThickness = 4
+	local historyLabel = row("TextLabel", "Belum ada tangkapan.", 45)
+	historyLabel.Parent = historyFrame
+	historyLabel.TextXAlignment = Enum.TextXAlignment.Left
+	historyLabel.TextYAlignment = Enum.TextYAlignment.Top
+	row("TextLabel", "PELINDUNG AUTO SELL")
+	row("TextLabel", "Selalu melindungi ikan favorit dan filter yang diisi. Jika ada ikan dilindungi, seluruh jual otomatis dibatalkan karena game memakai JualSemua. Tidak melindungi penjualan manual di luar hub.", 80)
+	field("ProtectNames", "Nama ikan dilindungi (pisahkan koma)")
+	field("ProtectMutations", "Mutasi dilindungi (pisahkan koma)")
+	field("ProtectRarities", "Rarity dilindungi (pisahkan koma)")
 	function App.RefreshCatchStats()
 		local stats = App.catchStats
 		local elapsed = math.max(0, os.clock() - stats.started)
 		local rate = elapsed > 0 and stats.total * 60 / elapsed or 0
-		statsLabel.Text = string.format("Tangkapan: %d | Durasi: %02d:%02d | %.2f ikan/menit\nSecret: %d | Forgotten: %d\nIkan terlangka: %s\nTerakhir: %s",
+		statsLabel.Text = string.format("Tangkapan: %d | Durasi: %02d:%02d | %.2f ikan/menit\nSecret: %d | Forgotten: %d\nIkan terlangka: %s\nTerakhir: %s\nPeluang terbaca: %d/%d (peringkat dari data terbaca)",
 			stats.total, math.floor(elapsed / 60), math.floor(elapsed % 60), rate,
-			stats.byRarity.secret or 0, stats.byRarity.forgotten or 0, stats.best, stats.last)
-		targetStatus.Text = App.targetMessage or "Pemantauan target belum aktif."
+			stats.byRarity.secret or 0, stats.byRarity.forgotten or 0, stats.best, stats.last, stats.known, stats.total)
+		local lines = {}
+		for _, record in ipairs(stats.history) do
+			table.insert(lines, "#" .. record.index .. "  " .. record.description)
+		end
+		historyLabel.Text = #lines > 0 and table.concat(lines, "\n\n") or "Belum ada tangkapan."
+		historyLabel.Size = UDim2.new(1, -8, 0, math.max(45, #lines * 66))
 	end
 	App.configViews = App.configViews or {}
 	table.insert(App.configViews, function()
 		for key, input in pairs(fields) do input.Text = State.Config[key] end
-		banner.Visible = false
-		App.targetMessage = nil
 		App.RefreshCatchStats()
 	end)
 	App.RefreshCatchStats()

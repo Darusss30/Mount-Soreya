@@ -402,45 +402,34 @@ step(7)
 check(sellCalls==1,"no duplicate sell while server pending")
 click("Auto Sell Timer")
 
--- Targets use received catches, match both fields literally, and stop both automation modes.
-step(15) -- let the previous simulated server sale finish
-click("Target & Statistik")
-local catchPage=findText("TARGET IKAN & STATISTIK SESI","TextLabel").Parent
-check(catchPage.Visible,"catch dashboard navigation opens")
-click("Pantau Target dan Stop Otomatis")
-check(findText("Pantau Target dan Stop Otomatis","TextButton").Text:find("[OFF]",1,true),"empty target cannot arm")
-fill("Nama ikan target","  Test Fish  ")
-fill("Mutasi target","8-Bit")
-click("Pantau Target dan Stop Otomatis")
-click("Smart Auto Fishing (Di Tempat Saja)")
-click("Auto Sell Timer")
-notify.OnClientEvent:Fire("GotFish",{uid="catch1",baseName="Test Fish",rarity="Rare",mutation="8xBit"}); step(0)
-check(findText("Smart Auto Fishing (Di Tempat Saja)","TextButton").Text:find("[ON]",1,true),"wrong mutation does not stop fishing")
-notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="test fish",rarity="Secret",mutation="8-bit"}); step(0)
-check(findText("Smart Auto Fishing (Di Tempat Saja)","TextButton").Text:find("[OFF]",1,true),"matching target stops fishing")
-check(findText("Auto Sell Timer","TextButton").Text:find("[OFF]",1,true),"target stops auto sell")
-check(playerGui.DarusHub.TargetCatchNotification.Visible,"target shows visible dismissible notification")
+-- Statistics work without targets or automatic stops.
+step(15)
+click("Statistik")
+local catchPage=findText("STATISTIK SESI","TextLabel").Parent
+check(catchPage.Visible,"statistics navigation opens")
+local hasTarget=false
+for _,object in ipairs(playerGui:GetDescendants()) do
+    if object.Text and (object.Text:find("Pantau Target",1,true) or object.Text=="Target & Statistik") then hasTarget=true end
+end
+check(not hasTarget and not playerGui.DarusHub:FindFirstChild("TargetCatchNotification"),"target UI and notification removed")
+notify.OnClientEvent:Fire("GotFish",{uid="catch1",baseName="Test Fish",rarity="Mythical",mutation="Normal",chance="600K"}); step(0)
+notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="Secret Fish",rarity="Secret",mutation="Normal"}); step(0)
 check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"received catches counted")
-check(findText("Secret: 1","TextLabel",catchPage)~=nil,"rarity counts tracked")
-notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="test fish",rarity="Secret",mutation="8-bit"}); step(0)
-check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"duplicate server catch ID counted once")
+notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="Secret Fish",rarity="Secret",chance="1M"}); step(0)
+check(findText("Ikan terlangka: Secret Fish | Normal | Secret | 1 dari 1M","TextLabel",catchPage)~=nil,"late duplicate-ID odds promote Secret 1M above Mythical 600K")
+check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"late odds do not duplicate count")
+check(findText("Peluang terbaca: 2/2","TextLabel",catchPage)~=nil,"resolved odds coverage tracked")
+check(findText("#2  Secret Fish | Normal | Secret | 1 dari 1M","TextLabel",catchPage)~=nil,"history enriched by delayed odds")
 notify.OnClientEvent:Fire("Bite",{}); notify.OnClientEvent:Fire("GotFish",{}); step(0)
 check(findText("Tangkapan: 2","TextLabel",catchPage)~=nil,"non-catch and malformed events ignored")
 click("Reset Statistik Sesi")
-notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="test fish"}); step(0)
-check(findText("Tangkapan: 0","TextLabel",catchPage)~=nil,"stats reset preserves deduplication")
-fill("Nama ikan target",""); fill("Mutasi target","Gold")
-click("Smart Auto Fishing + Teleport")
-notify.OnClientEvent:Fire("GotFish",{uid="catch3",baseName="Any Fish",rarity="Forgotten",mutation="Gold",chance="1 in 200M"}); step(0)
-check(findText("Smart Auto Fishing + Teleport","TextButton").Text:find("[OFF]",1,true),"mutation-only target stops teleport fishing")
-check(findText("Ikan terlangka: Any Fish | Gold | Forgotten | 1 dari 200000000","TextLabel",catchPage)~=nil,"reported catch odds displayed")
-click("Pantau Target dan Stop Otomatis")
-fill("Nama ikan target","Test Fish"); fill("Mutasi target","8-Bit")
+notify.OnClientEvent:Fire("GotFish",{uid="catch2",baseName="Secret Fish",chance="2M"}); step(0)
+check(findText("Tangkapan: 0","TextLabel",catchPage)~=nil,"reset prevents duplicate events from prior session")
 fill("Nama ikan dilindungi","Keep Fish, Another Fish")
 fill("Mutasi dilindungi","Gold, 8-Bit")
 click("Simpan Konfigurasi")
 local catchSaved=encoded[files["DarusHub_Config.json"]]
-check(catchSaved.TargetName=="Test Fish" and catchSaved.ProtectMutations=="Gold, 8-Bit","target and protection fields persist")
+check(catchSaved.TargetName==nil and catchSaved.ProtectMutations=="Gold, 8-Bit","target settings removed; protection settings saved")
 
 -- Bulk sale is blocked even for favorited fish: server sell exclusions are unknown.
 sell.serverCallback=function() sellCalls+=1; return true end
@@ -453,7 +442,7 @@ local function attemptSale(data)
 end
 check(attemptSale({{uid="p1",nama="Rare Fish",rarity="Secret",mutasi="Normal"}})==0,"default Secret protection blocks bulk sale")
 check(attemptSale({{uid="p2",nama="Rare Fish",rarity="Forgotten",mutasi="Normal"}})==0,"default Forgotten protection blocks bulk sale")
-check(attemptSale({{uid="p3",nama="test fish",rarity="Common",mutasi="8-bit"}})==0,"configured target protected when tracking is OFF")
+check(attemptSale({{uid="p3",nama="test fish",rarity="Common",mutasi="8-bit"}})==0,"protected mutation remains effective")
 check(attemptSale({{uid="p4",nama="keep fish",rarity="Common",mutasi="Normal"}})==0,"custom protected name blocks sale")
 check(attemptSale({{uid="p5",nama="Ordinary Fish",rarity="Common",mutasi="Gold"}})==0,"protected mutation blocks sale")
 check(attemptSale({{uid="p6",nama="Ordinary Fish",rarity="Common",mutasi="Normal",favorit=true}})==0,"existing favorite blocks bulk sale")
@@ -522,7 +511,7 @@ step(2.1)
 click("Reset Konfigurasi"); step(0)
 check(box("Bite Delay").Text=="0.5" and box("Jeda Waktu Jual").Text=="5","reset refreshes numeric UI")
 check(box("Paste Discord").Text=="","reset clears webhook UI")
-check(box("Nama ikan target").Text=="" and box("Rarity dilindungi").Text=="Secret, Forgotten","reset restores target and protection defaults")
+check(box("Rarity dilindungi").Text=="Secret, Forgotten","reset restores protection defaults")
 check(findText("8-Bit","TextButton",mutationScope).Text:find("[ ]",1,true),"reset refreshes filter UI")
 step(2)
 
@@ -532,12 +521,11 @@ RunHub(); step(2)
 check(gui.destroyed,"rerun shuts down previous GUI")
 check(connectionCount()<=baseline,"rerun does not leak connections: " .. connectionCount() .. "/" .. baseline)
 local cleanBaseline=connectionCount()
-fill("Nama ikan target","Reload Fish"); fill("Mutasi dilindungi","8-Bit")
+fill("Mutasi dilindungi","8-Bit")
 click("Simpan Konfigurasi")
 RunHub(); step(2)
 check(connectionCount()==cleanBaseline,"consecutive fresh runs have stable connection count")
-check(box("Nama ikan target").Text=="Reload Fish" and box("Mutasi dilindungi").Text=="8-Bit","saved catch settings reload")
-check(findText("Pantau Target dan Stop Otomatis","TextButton").Text:find("[OFF]",1,true),"reloaded target monitor starts OFF")
+check(box("Mutasi dilindungi").Text=="8-Bit","saved catch settings reload")
 check(findText("Tangkapan: 0","TextLabel")~=nil,"rerun begins fresh catch statistics")
 check(player.Character.Humanoid.WalkSpeed==16 and head.Transparency==0.25 and services.Lighting.GlobalShadows,"rerun restores character and lighting")
 check(head:FindFirstChild("CustomPlayerHalo")==nil,"rerun removes owned halo")
@@ -565,8 +553,8 @@ for _,object in ipairs(playerGui:GetDescendants()) do
 end
 check(not hasRodEditor,"rod editor removed")
 
-click("Target & Statistik")
-local oddsPage=findText("TARGET IKAN & STATISTIK SESI","TextLabel").Parent
+click("Statistik")
+local oddsPage=findText("STATISTIK SESI","TextLabel").Parent
 click("Reset Statistik Sesi")
 local function catchOdds(name, chance, rarity)
 	notify.OnClientEvent:Fire("GotFish", {baseName=name, chance=chance, rarity=rarity or "Secret", mutation="Normal"})
@@ -575,24 +563,24 @@ end
 catchOdds("No Odds",nil,"Forgotten")
 check(findText("Ikan terlangka: Belum ada data peluang","TextLabel",oddsPage)~=nil,"missing odds do not invent a ranking")
 catchOdds("Great Whale","1 in 950K")
-check(findText("Ikan terlangka: Great Whale | Normal | Secret | 1 dari 950000","TextLabel",oddsPage)~=nil,"950K denominator parsed")
+check(findText("Ikan terlangka: Great Whale | Normal | Secret | 1 dari 950K","TextLabel",oddsPage)~=nil,"950K denominator parsed")
 catchOdds("Rare Secret","1 dari 20M")
-check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20000000","TextLabel",oddsPage)~=nil,"20M beats 950K within same Secret category")
+check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20M","TextLabel",oddsPage)~=nil,"20M beats 950K within same Secret category")
 catchOdds("Great Whale Again",950000)
 catchOdds("Higher Category","1/1000000","Forgotten")
-check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20000000","TextLabel",oddsPage)~=nil,"commoner odds cannot replace best even with higher category")
+check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20M","TextLabel",oddsPage)~=nil,"commoner odds cannot replace best even with higher category")
 for _,case in ipairs({
-	{"1/200,000,000",200000000}, {"1 dari 250.000.000",250000000},
-	{"300.5M",300500000}, {"350,5M",350500000},
-	{400000000,400000000}, {"1 : 500 000 000",500000000}, {"1B",1000000000},
+	{"1/200,000,000",200000000,"200M"}, {"1 dari 250.000.000",250000000,"250M"},
+	{"300.5M",300500000,"300.5M"}, {"350,5M",350500000,"350.5M"},
+	{400000000,400000000,"400M"}, {"1 : 500 000 000",500000000,"500M"}, {"1B",1000000000,"1B"},
 }) do
 	catchOdds("Format " .. tostring(case[2]),case[1])
-	check(findText("Ikan terlangka: Format " .. tostring(case[2]) .. " | Normal | Secret | 1 dari " .. tostring(case[2]),"TextLabel",oddsPage)~=nil,"supported denominator format: " .. tostring(case[1]))
+	check(findText("Ikan terlangka: Format " .. tostring(case[2]) .. " | Normal | Secret | 1 dari " .. case[3],"TextLabel",oddsPage)~=nil,"supported denominator format: " .. tostring(case[1]))
 end
 for _,value in ipairs({"N/A","20M garbage","1/0",-10,0.01,math.huge,0/0,"1 in 1e999","12,34,567"}) do catchOdds("Invalid",value,"Forgotten") end
 catchOdds("Missing",nil,"Forgotten")
 catchOdds("Tie","1 in 1B")
-check(findText("Ikan terlangka: Format 1000000000 | Normal | Secret | 1 dari 1000000000","TextLabel",oddsPage)~=nil,"invalid missing and tied odds preserve best catch")
+check(findText("Ikan terlangka: Format 1000000000 | Normal | Secret | 1 dari 1B","TextLabel",oddsPage)~=nil,"invalid missing and tied odds preserve best catch")
 check(findText("Tangkapan: 23","TextLabel",oddsPage)~=nil,"unknown odds still count as catches")
 click("Reset Statistik Sesi")
 check(findText("Ikan terlangka: Belum ada data peluang","TextLabel",oddsPage)~=nil,"reset clears best odds")
@@ -609,21 +597,21 @@ local function popupCatch(name, mutation, weight, text, odds, direct)
 	step(0.5)
 end
 popupCatch("Manta Ray","Stone",157.97,"Stone Big Manta Ray (157.97kg)","1 in 50.0K")
-check(findText("Ikan terlangka: Manta Ray | Stone | Secret | 1 dari 50000 (tampilan game)","TextLabel",oddsPage)~=nil,"screenshot popup odds matched to catch")
+check(findText("Ikan terlangka: Manta Ray | Stone | Secret | 1 dari 50K (tampilan game)","TextLabel",oddsPage)~=nil,"screenshot popup odds matched to catch")
 check(findText("Tangkapan: 1","TextLabel",oddsPage)~=nil,"popup enriches catch without incrementing count")
 popupCatch("Great Whale","Normal",500,"Big Great Whale (500.00kg)","<font color='#fff'>1 in 950.0K</font>")
 popupCatch("Rare Secret","Normal",100,"Big Rare Secret (100.00kg)","1 in 20.0M")
-check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20000000 (tampilan game)","TextLabel",oddsPage)~=nil,"popup 20M replaces popup 950K")
+check(findText("Ikan terlangka: Rare Secret | Normal | Secret | 1 dari 20M (tampilan game)","TextLabel",oddsPage)~=nil,"popup 20M replaces popup 950K")
 check(findText("Tangkapan: 3","TextLabel",oddsPage)~=nil,"popup tracking does not duplicate catches")
 popupCatch("Direct Odds","Normal",1,"Direct Odds (1.00kg)","1 in 999B","1 in 30M")
-check(findText("Ikan terlangka: Direct Odds | Normal | Secret | 1 dari 30000000","TextLabel",oddsPage)~=nil,"event odds take precedence over popup")
+check(findText("Ikan terlangka: Direct Odds | Normal | Secret | 1 dari 30M","TextLabel",oddsPage)~=nil,"event odds take precedence over popup")
 popupCatch("Other Fish","Normal",1,"Wrong Fish (1.00kg)","1 in 900B")
 popupCatch("Wrong Weight","Normal",1,"Wrong Weight (2.00kg)","1 in 800B")
 popupCatch("Wrong Mutation","Gold",1,"Stone Wrong Mutation (1.00kg)","1 in 700B")
-check(findText("Ikan terlangka: Direct Odds | Normal | Secret | 1 dari 30000000","TextLabel",oddsPage)~=nil,"unrelated name weight and mutation cannot set best odds")
+check(findText("Ikan terlangka: Direct Odds | Normal | Secret | 1 dari 30M","TextLabel",oddsPage)~=nil,"unrelated name weight and mutation cannot set best odds")
 popupFrame.Visible=false
 popupCatch("Hidden","Normal",1,"Hidden (1.00kg)","1 in 600B")
-check(findText("Ikan terlangka: Direct Odds | Normal | Secret | 1 dari 30000000","TextLabel",oddsPage)~=nil,"hidden popup ignored")
+check(findText("Ikan terlangka: Direct Odds | Normal | Secret | 1 dari 30M","TextLabel",oddsPage)~=nil,"hidden popup ignored")
 popupFrame.Visible=true
 popupCatch("Late UI","Normal",1,"Late UI (1.00kg)","1 in 40M")
 notify.OnClientEvent:Fire("GotFish",{baseName="Newer Fish",rarity="Common",mutation="Normal"}); step(0.5)
@@ -631,7 +619,7 @@ check(findText("Terakhir: Newer Fish","TextLabel",oddsPage)~=nil,"old popup cann
 step(4)
 notify.OnClientEvent:Fire("GotFish",{baseName="Late UI",rarity="Secret",mutation="Normal",weight=1}); step(0.5)
 check(findText("Terakhir: Late UI | Normal | Secret | menunggu data peluang","TextLabel",oddsPage)~=nil,"stale popup not reused for a later catch")
-step(4)
+step(21)
 check(findText("peluang belum terbaca","TextLabel",oddsPage)~=nil,"unresolved popup has explicit timeout status")
 click("Reset Statistik Sesi")
 notify.OnClientEvent:Fire("GotFish",{baseName="Reset Pending",rarity="Secret",mutation="Normal"}); step(0)
@@ -648,8 +636,62 @@ notify.OnClientEvent:Fire("GotFish",{baseName="Staggered",rarity="Secret",mutati
 popupName.Text="Staggered (1kg)"; step(0.5)
 check(findText("Ikan terlangka: Belum ada data peluang","TextLabel",oddsPage)~=nil,"new title cannot borrow old popup odds")
 popupOdds.Text="1 in 60M"; step(0.5)
-check(findText("Ikan terlangka: Staggered | Normal | Secret | 1 dari 60000000","TextLabel",oddsPage)~=nil,"delayed popup odds resolve once both fields are fresh")
+check(findText("Ikan terlangka: Staggered | Normal | Secret | 1 dari 60M","TextLabel",oddsPage)~=nil,"delayed popup odds resolve once both fields are fresh")
 gamePopup:Destroy()
+
+-- Rare notification layouts can be deeper and more decorative than normal ones.
+click("Reset Statistik Sesi")
+catchOdds("Mythical Baseline",600000,"Mythical")
+local rareGui=Instance.new("ScreenGui",playerGui)
+local rareFrame=Instance.new("Frame",rareGui)
+for _=1,55 do Instance.new("Frame",rareFrame) end
+local nested=rareFrame
+for _=1,5 do nested=Instance.new("Frame",nested) end
+local rareTitle=Instance.new("TextLabel",nested)
+local rareShadow=Instance.new("TextLabel",nested)
+local rareOdds=Instance.new("TextLabel",rareFrame)
+local rareOddsShadow=Instance.new("TextLabel",rareFrame)
+notify.OnClientEvent:Fire("GotFish",{uid="rareDelayed",baseName="Delayed Secret",rarity="Secret",mutation="Normal",weight=12}); step(5)
+rareTitle.Text="Big Delayed Secret (12kg)"; rareShadow.Text=rareTitle.Text
+rareOdds.Text="1 in 1.0M"; rareOddsShadow.Text=rareOdds.Text; step(0.5)
+check(findText("Ikan terlangka: Delayed Secret | Normal | Secret | 1 dari 1M","TextLabel",oddsPage)~=nil,"delayed decorative rare popup replaces Mythical 600K with Secret 1M")
+check(findText("#2  Delayed Secret | Normal | Secret | 1 dari 1M","TextLabel",oddsPage)~=nil,"delayed rare popup updates history")
+rareOdds.Text="1 in 2M"; rareOddsShadow.Text=rareOdds.Text; step(0.5)
+check(findText("Ikan terlangka: Delayed Secret | Normal | Secret | 1 dari 2M","TextLabel",oddsPage)~=nil,"same popup odds can finish updating after initial read")
+notify.OnClientEvent:Fire("GotFish",{uid="rareDelayed",chance="1.5M"}); step(0)
+check(findText("Ikan terlangka: Delayed Secret | Normal | Secret | 1 dari 1.5M","TextLabel",oddsPage)~=nil,"ID-only authoritative update corrects popup without name")
+check(findText("Tangkapan: 2","TextLabel",oddsPage)~=nil,"delayed enrichment never adds a fish")
+rareGui:Destroy()
+
+click("Reset Statistik Sesi")
+catchOdds("Mythical Baseline",600000,"Mythical")
+notify.OnClientEvent:Fire("GotFish",{uid="inventoryCatch",baseName="Inventory Secret",rarity="Secret",mutation="Normal"}); step(0)
+getAll.serverCallback=function() return {
+	{uid="inventoryCatch",nama="Inventory Secret",rarity="Secret",mutasi="Normal",chance="1M"},
+	{uid="preexistingFish",nama="Old Inventory Fish",rarity="Secret",mutasi="Normal",chance="100M"},
+} end
+step(9)
+check(findText("Ikan terlangka: Inventory Secret | Normal | Secret | 1 dari 1M","TextLabel",oddsPage)~=nil,"inventory chance backfills only current-session catch ID")
+check(findText("Tangkapan: 2","TextLabel",oddsPage)~=nil,"inventory read does not import preexisting fish")
+check(findText("Peluang terbaca: 2/2","TextLabel",oddsPage)~=nil,"inventory enrichment updates coverage")
+getAll.serverCallback=function() return {} end
+click("Reset Statistik Sesi")
+catchOdds("Four Thousand",4000)
+check(findText("1 dari 4K","TextLabel",oddsPage)~=nil,"4000 compacted to 4K")
+catchOdds("One Million",1000000)
+check(findText("1 dari 1M","TextLabel",oddsPage)~=nil,"1000000 compacted to 1M")
+catchOdds("More Precise",1000200)
+catchOdds("Less Precise",1000100)
+check(findText("Ikan terlangka: More Precise","TextLabel",oddsPage)~=nil,"ranking uses unrounded numbers despite identical compact display")
+for index=1,101 do catchOdds("History Fish " .. index,10) end
+local history=findText("#105  History Fish 101","TextLabel",oddsPage).Text
+check(not history:find("#1  ",1,true) and history:find("#6  ",1,true),"history bounded to 100 most recent catches")
+check(findText("Ikan terlangka: More Precise","TextLabel",oddsPage)~=nil,"best session record survives eviction from visible history")
+catchOdds("Unknown Secret",nil,"Secret")
+check(findText("#106  Unknown Secret","TextLabel",oddsPage)~=nil,"unread rare catch remains visible in history")
+check(findText("Peluang terbaca: 105/106","TextLabel",oddsPage)~=nil,"unread odds are explicit instead of silently missing")
+click("Reset Statistik Sesi")
+check(findText("Belum ada tangkapan.","TextLabel",oddsPage)~=nil,"reset clears history")
 
 click("×"); step(1)
 check(playerGui:FindFirstChild("DarusHub")==nil,"close destroys UI")

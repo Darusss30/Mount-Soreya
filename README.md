@@ -8,7 +8,7 @@ Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabas
 ## Fitur
 
 - Fishing & Sell: dua mode pancing yang saling eksklusif, pilihan spot, rotasi spot, jeda gigitan, dan timer jual ke NPC.
-- Target & Statistik: pemantau ikan/mutasi, penghentian otomatis saat target tertangkap, perlindungan auto sell, dan statistik sesi.
+- Statistik: ringkasan sesi, ikan terlangka, riwayat 100 tangkapan, dan pelindung auto sell.
 - Favorite: filter rarity/mutasi, auto favorite, serta unfavorite berdasarkan filter atau seluruh ikan.
 - Galatama dan perpindahan berdasarkan perkiraan jadwal Core.
 - Teleport shop/NPC dan pemain.
@@ -50,65 +50,71 @@ Jika versi sumber lama sudah berjalan tanpa mekanisme cleanup, masuk ulang ke ga
 Tidak ada fitur yang menjamin ikan atau mutasi tertentu dalam sekali pancing.
 Keputusan hasil ikan tetap berada di server game; repositori ini tidak memuat kode server tersebut.
 
-## Target & Statistik
+## Statistik
 
-Buka **Target & Statistik**, di bawah **Credits** pada sidebar (gulir bila perlu).
+Buka **Statistik**, di bawah **Credits** pada sidebar. Fitur target, banner target,
+dan penghentian otomatis saat target tertangkap sudah dihapus. Konfigurasi target
+lama diabaikan dan tidak disimpan kembali.
 
-1. Isi nama ikan dan/atau mutasi target, lalu aktifkan **Pantau Target dan Stop Otomatis**.
-   Keduanya dicocokkan persis tanpa membedakan huruf besar/kecil. Kolom kosong berarti bebas;
-   keduanya tidak boleh kosong ketika mengaktifkan pemantauan.
-2. Jalankan mode auto fishing yang diinginkan. Saat notifikasi `GotFish` dari game cocok,
-   kedua mode auto fishing dan auto sell dimatikan. Banner tetap terlihat walaupun hub
-   diminimalkan; klik banner untuk menutupnya. Pantauan tidak mengubah hasil undian server.
-3. Isi daftar nama, mutasi, atau rarity yang dilindungi dengan pemisah koma.
-   Bawaan melindungi **Secret** dan **Forgotten**. Ikan favorit dan target yang diisi
-   selalu dilindungi dari auto sell hub, termasuk ketika pemantauan target sedang OFF.
-4. Simpan pilihan melalui **Settings > Simpan Konfigurasi**. Pemantauan perlu diaktifkan
-   kembali setiap sesi; statistik dimulai dari nol setiap kali hub dijalankan ulang.
+Statistik menampilkan jumlah tangkapan, durasi, ikan per menit, Secret/Forgotten,
+ikan terakhir, ikan terlangka, serta **Peluang terbaca: X/Y**. Peringkat hanya
+membandingkan peluang yang sudah terbaca: **Secret 1M mengalahkan Mythical 600K**,
+dan **20M mengalahkan 950K**. Kategori tidak menggantikan angka peluang.
 
-**Perilaku jual:** sumber hanya menyediakan pemanggilan `JualSemua`, tanpa kontrak
-penjualan per ikan yang terverifikasi. Karena itu, hub membatalkan **seluruh penjualan
-otomatis** jika menemukan ikan dilindungi, termasuk yang sudah difavoritkan. Jika data
-inventaris tidak lengkap/gagal dibaca, atau tangkapan baru terdeteksi selama pemeriksaan,
-penjualan juga dibatalkan dan alasannya ditampilkan pada status. Gunakan penjualan
-selektif di dalam game jika tersedia untuk menjual ikan lain.
-Perlindungan ini memeriksa snapshot inventaris; pemeriksaan dan penjualan tidak atomik
-di server. Perubahan server setelah pemeriksaan, penjualan manual di luar hub, dan
-permintaan jual yang sudah dikirim tidak dapat dibatalkan oleh pelindung ini.
+Angka ditampilkan singkat: `4000` menjadi **4K**, `1000000` menjadi **1M**, dan
+`2500000000` menjadi **2.5B**. Tampilan memakai maksimal tiga angka desimal;
+perbandingan tetap memakai angka penuh sebelum pembulatan tampilan.
 
-Statistik menampilkan jumlah tangkapan, durasi sesi, rata-rata tangkapan per menit,
-jumlah Secret/Forgotten, tangkapan terakhir, dan **ikan terlangka berdasarkan peluang**.
-Untuk peluang **1 dari N**, penyebut N yang lebih besar berarti lebih langka:
-**1 dari 20M mengalahkan 1 dari 950K**, termasuk jika keduanya Secret.
-Peringkat membaca field `chance`/`Chance` dari notifikasi game, mendukung angka penyebut,
-format `1 in N`, `1 dari N`, `1/N`, `1:N`, pemisah ribuan, serta akhiran K/M/B.
-Contoh: `950K`, `20M`, `20.5M`, `20,5M`, `20.000.000`, dan `20,000,000`.
-Data peluang yang hilang/tidak terbaca tidak menggantikan rekor yang valid; tangkapannya
-tetap dihitung. Kategori Secret/Forgotten tidak dipakai sebagai pengganti angka peluang.
-Jika event tidak menyertakan peluang yang terbaca, hub menunggu popup tangkapan game
-selama sekitar tiga detik. Popup dicocokkan dengan nama, mutasi, dan berat jika berat
-tersedia di event. Contoh `Stone Big Manta Ray (157.97kg)` dengan `1 in 50.0K`
-akan terbaca sebagai `1 dari 50000 (tampilan game)`; angka ini mengikuti tampilan
-game dan mungkin sudah dibulatkan. Teks RichText didukung. Peluang dari event tetap
-diutamakan jika tersedia.
+**Riwayat 100 tangkapan terakhir** mencatat semua notifikasi tangkapan yang valid,
+termasuk ikan yang peluangnya belum terbaca. Data yang datang terlambat memperbarui
+baris ikan tersebut dan rekor tanpa menambah hitungan atau mengganti ikan terakhir
+jika sudah ada tangkapan baru. Rekor sesi tidak hilang saat baris lama keluar dari
+riwayat; 100 kandidat dengan peluang terbesar dipertahankan untuk koreksi rekor.
 
-Pembacaan popup hanya menerima judul berakhiran `(berat kg)` dan satu label peluang
-yang baru diperbarui dalam kelompok UI kecil yang sama. Popup tersembunyi, teks hub,
-popup lama, nama/berat/mutasi berbeda, atau beberapa tangkapan yang ambigu diabaikan.
-Pembacaan terlambat memperbarui rekor tanpa menambah hitungan tangkapan atau menimpa
-informasi ikan terakhir yang lebih baru. Jika susunan popup game tidak cocok, status
-berubah dari `menunggu data peluang` menjadi `peluang belum terbaca`; hub tidak
-menebak peluangnya. Dukungan susunan UI game asli masih perlu diuji di Roblox.
+Pembacaan peluang dilakukan melalui:
 
-Angka hanya berasal dari notifikasi
-`GotFish` yang diterima sejak sesi/reset, bukan seluruh inventaris atau jaminan peluang.
-Duplikasi notifikasi dengan `uid`/`UUID` yang sama disaring untuk 1.000 ID terakhir;
-tanpa ID dari game, notifikasi ganda tidak dapat dibedakan secara andal.
-**Reset Statistik Sesi** menghapus hitungan dan durasi tanpa mengubah target/proteksi.
+- Field `chance`/`Chance` pada event `GotFish`. Format angka, `1 in N`, `1 dari N`,
+  `1/N`, `1:N`, pemisah ribuan, dan akhiran K/M/B didukung. Event tambahan dengan
+  ID tangkapan sama boleh melengkapi atau mengoreksi peluang tanpa dihitung ulang.
+- Popup game yang cocok dengan nama, mutasi, dan berat jika tersedia. Pembaca
+  menunggu hingga 20 detik untuk animasi yang terlambat, menelusuri sampai 10 tingkat
+  UI, dan menggabungkan label teks bayangan yang identik. Jumlah dekorasi tidak lagi
+  dibatasi 40 elemen. Perubahan angka berikutnya pada popup yang sama dapat
+  memperbarui peluang yang semula terbaca.
+- Pemeriksaan inventaris untuk ID tangkapan sesi yang peluangnya masih kosong,
+  maksimal tiga percobaan per tangkapan dengan interval worker delapan detik.
+  Hanya field peluang yang benar-benar tersedia digunakan. Ikan inventaris lama
+  tidak diimpor sebagai tangkapan sesi. Pemeriksaan ditunda ketika jual/favorite sibuk.
+
+Popup harus memiliki judul berakhiran `(berat kg)` dan satu nilai peluang yang
+unik pada kelompok UI yang sama. Teks RichText didukung. Popup tersembunyi, lama,
+berbeda identitas, atau ambigu tidak digunakan. Contoh `Stone Big Manta Ray (157.97kg)`
+dengan `1 in 50.0K` ditampilkan sebagai **1 dari 50K (tampilan game)**. Nilai ini
+mengikuti angka tampilan game yang mungkin sudah dibulatkan; event/inventaris
+menggantikan pembacaan popup jika memberikan data peluang yang lebih lengkap.
+
+Jika semua sumber tidak menyediakan peluang yang cocok, ikan tetap ada di riwayat
+dengan status **peluang belum terbaca**, dan angka X/Y menunjukkan data yang belum
+lengkap. Belum ada pengujian langsung pada semua susunan popup game asli.
+Statistik hanya mencatat event yang diterima sejak sesi/reset. ID ganda disaring
+untuk 1.000 ID terakhir; notifikasi tanpa ID tidak dapat dideduplikasi secara andal.
+**Reset Statistik Sesi** membersihkan hitungan, durasi, rekor, dan riwayat sesi.
+
+### Pelindung auto sell
+
+Di bawah statistik, isi nama, mutasi, atau rarity yang dilindungi dengan pemisah
+koma. Bawaan melindungi **Secret**, **Forgotten**, serta ikan favorit. Simpan filter
+melalui **Settings > Simpan Konfigurasi**. Reset statistik tidak mengubah filter.
+
+Sumber memakai `JualSemua`; karena itu seluruh penjualan otomatis dibatalkan jika
+ada ikan dilindungi, inventaris gagal/tidak lengkap, atau tangkapan baru muncul
+selama pemeriksaan. Alasannya ditampilkan pada status. Gunakan penjualan selektif
+di game jika tersedia. Pemeriksaan dan penjualan tidak atomik di server; pelindung
+ini tidak membatalkan permintaan jual yang sudah dikirim atau penjualan manual.
 
 ## Validasi
 
-Kompilasi Luau dan **123 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **134 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
 Cakupan mencakup seluruh tab, pergantian mode pancing, gigitan cepat/terlambat,
 respawn, pemulihan rod, favorite, konfigurasi, timeout jual, privacy, pembatalan
 summit, webhook tiruan, halo, drag, dan pembersihan saat dijalankan ulang/ditutup.
@@ -117,8 +123,10 @@ dalam kategori Secret yang sama, format angka, nilai invalid, seri, dan reset.
 Fallback popup diuji menggunakan teks pada laporan pengguna, RichText, prioritas
 event, kecocokan identitas, popup lama/tersembunyi, pembaruan judul dan peluang
 yang terpisah, tangkapan ambigu, timeout, reset, dan hitungan yang tidak bertambah ganda.
-Target/statistik diuji untuk kecocokan literal, kombinasi nama/mutasi, duplikasi ID,
-reset, penyimpanan dan pemuatan ulang. Pelindung jual diuji untuk favorit, target,
+Statistik diuji untuk penghapusan target, Secret 1M vs Mythical 600K, popup dekoratif
+terlambat, koreksi ID yang sama, pemeriksaan inventaris berdasarkan ID, singkatan K/M/B,
+peringkat angka penuh, riwayat 100 baris, reset, penyimpanan dan pemuatan ulang.
+Pelindung jual diuji untuk favorit,
 filter nama/mutasi/rarity, inventaris gagal/tidak lengkap, tangkapan baru saat
 pemeriksaan, dan pembatalan ketika auto sell dimatikan atau OFF/ON dengan cepat.
 Pengujian tidak mengirim pesan atau permintaan ke server game/Discord nyata.
