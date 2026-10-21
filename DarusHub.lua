@@ -27,7 +27,7 @@ for _, name in ipairs({"DarusHub", "DarusHubCollect"}) do
 	end
 end
 local State = {}
-local App = {version = "2.2", running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
+local App = {version = "2.3", running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
 	dragSuppressed = {}, pending = {}, toggles = {}, fishingEpoch = 0, lastError = {}}
 local Gui = Instance.new("ScreenGui", PlayerGui)
 Gui.Name = "DarusHub"
@@ -1305,11 +1305,12 @@ do
 	local totalLabel = metric(1, Color3.fromRGB(106, 226, 236))
 	local durationLabel = metric(2, Color3.fromRGB(223, 232, 241))
 	local rateLabel = metric(3, Color3.fromRGB(152, 226, 182))
-	local bestLabel = row("TextLabel", "", 76)
+	local bestLabel = row("TextLabel", "", 116)
 	bestLabel.Name = "RarestCatch"
 	bestLabel.AutomaticSize = Enum.AutomaticSize.Y
 	bestLabel.Font = Enum.Font.GothamMedium
 	bestLabel.TextSize = 14
+	bestLabel.TextYAlignment = Enum.TextYAlignment.Top
 	bestLabel.BackgroundColor3 = Color3.fromRGB(44, 37, 28)
 	bestLabel.TextColor3 = Color3.fromRGB(255, 216, 144)
 	local accent = Instance.new("UIStroke", bestLabel)
@@ -1388,7 +1389,10 @@ do
 		totalLabel.Text = "Tangkapan: " .. stats.total
 		durationLabel.Text = string.format("Durasi: %02d:%02d", math.floor(elapsed / 60), math.floor(elapsed % 60))
 		rateLabel.Text = string.format("%.2f ikan/menit", rate)
-		bestLabel.Text = "Ikan terlangka: " .. stats.best
+		local best = stats.ranking[1]
+		bestLabel.Text = best and string.format("Ikan terlangka\n\nIkan: %s\nMutasi: %s\nRarity: %s\nPeluang: 1 dari %s",
+			best.fish.Name, best.fish.Mutation, best.fish.Rarity, App.FormatChance(best.chance))
+			or "Ikan terlangka\n\nBelum ada data peluang"
 		lastLabel.Text = "Terakhir: " .. stats.last
 		rarityLabel.Text = string.format("Secret: %d   |   Forgotten: %d", stats.byRarity.secret or 0, stats.byRarity.forgotten or 0)
 		coverageLabel.Text = string.format("Peluang terbaca: %d/%d   |   Belum terbaca: %d", stats.known, stats.total, stats.total - stats.known)

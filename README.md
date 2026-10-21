@@ -4,7 +4,7 @@ Darus Hub dikembangkan dari **`UBEYHUB.lua`**, bukan `UbeyHubV3.lua`.
 Sumber: [UbeyDev/Ubey-Hub — UBEYHUB.lua](https://github.com/UbeyDev/Ubey-Hub/blob/7152183/UBEYHUB.lua).
 Berkas utama adalah [`DarusHub.lua`](./DarusHub.lua).
 Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabase.
-Versi saat ini: **2.2**, terlihat di bagian atas hub dan laporan diagnostik.
+Versi saat ini: **2.3**, terlihat di bagian atas hub dan laporan diagnostik.
 
 ## Fitur
 
@@ -48,7 +48,7 @@ Webhook opsional memerlukan fungsi HTTP request yang kompatibel dan URL yang And
 Gunakan tombol X untuk mengakhiri sesi. Tombol minus dan tombol DH hanya mengubah tampilan menu.
 Untuk memperbarui, ambil [DarusHub.lua terbaru](https://raw.githubusercontent.com/Darusss30/Mount-Soreya/main/DarusHub.lua),
 tutup sesi lama, lalu jalankan berkas baru. Pembaruan di GitHub tidak mengganti kode
-yang sudah berjalan. Pastikan bagian atas hub menunjukkan **v2.2**; diagnostik
+yang sudah berjalan. Pastikan bagian atas hub menunjukkan **v2.3**; diagnostik
 bertanda **v1** masih berasal dari versi sebelum perbaikan probabilitas.
 **Anti-AFK** dan **Auto Join Galatama** otomatis ON saat hub dibuka atau konfigurasi
 direset. Keduanya tetap dapat dimatikan melalui tombol masing-masing.
@@ -71,7 +71,8 @@ ikan terakhir, ikan terlangka, serta **Peluang terbaca: X/Y**. Peringkat hanya
 membandingkan peluang yang sudah terbaca: **Secret 1M mengalahkan Mythical 600K**,
 dan **20M mengalahkan 950K**. Kategori tidak menggantikan angka peluang.
 Ringkasan memakai tiga kartu metrik, kartu ikan terlangka berwarna emas, dan kartu
-ikan terakhir. Riwayat memakai baris terpisah yang menyesuaikan tinggi teks.
+ikan terakhir. Kartu ikan terlangka disusun vertikal: judul, ikan, mutasi, rarity,
+dan peluang pada baris masing-masing. Riwayat memakai baris terpisah yang menyesuaikan tinggi teks.
 Tombol reset dan diagnostik berada di bawah riwayat; menu aktif diberi warna penanda.
 Keterangan sumber popup tidak lagi ditambahkan ke nama ikan atau angka peluang.
 
