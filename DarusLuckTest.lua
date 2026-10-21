@@ -19,7 +19,7 @@ local function textObject(class, text, position, size)
 	Instance.new("UICorner", item)
 	return item
 end
-local title = textObject("TextLabel", "DARUS HUB / UJI LUCKPET v1", UDim2.fromOffset(12, 4), UDim2.new(1, -60, 0, 30))
+local title = textObject("TextLabel", "DARUS HUB / UJI LUCKPET v2", UDim2.fromOffset(12, 4), UDim2.new(1, -60, 0, 30))
 title.BackgroundTransparency, title.TextXAlignment = 1, Enum.TextXAlignment.Left
 local close = textObject("TextButton", "X", UDim2.new(1, -38, 0, 5), UDim2.fromOffset(30, 28))
 local hint = textObject("TextLabel", "Pancing dahulu untuk data awal. Saat pancing berhenti, isi nilai lalu tekan Uji 60 detik. Gunakan rod, pet, dan server yang sama.", UDim2.fromOffset(12, 40), UDim2.new(1, -24, 0, 58))
@@ -41,7 +41,7 @@ output.MultiLine, output.TextEditable, output.ClearTextOnFocus = true, false, fa
 
 local running, active, testIndex = true, false, 0
 local original, applied, deadline, worker
-local events, notes, hooks = {}, {}, {}
+local phases, phaseOrder, notes, hooks = {}, {}, {}, {}
 local phase, status = "AWAL", "Belum ada nilai yang diubah."
 local function clean(value)
 	return tostring(value):gsub("[%c]", " "):sub(1, 160)
@@ -49,6 +49,28 @@ end
 local function finite(value)
 	return type(value) == "number" and value == value and math.abs(value) ~= math.huge
 end
+local function phaseData(name)
+	if not phases[name] then
+		phases[name] = {count = 0, samples = {}, luck = {known = 0}, pet = {known = 0}}
+		table.insert(phaseOrder, name)
+		-- Keep the initial baseline and the three most recent test/recovery pairs.
+		while #phaseOrder > 7 do phases[table.remove(phaseOrder, 2)] = nil end
+	end
+	return phases[name]
+end
+local function observe(range, value)
+	if finite(value) then
+		range.known += 1
+		range.minimum = range.minimum and math.min(range.minimum, value) or value
+		range.maximum = range.maximum and math.max(range.maximum, value) or value
+	end
+end
+local function rangeText(range)
+	if range.known == 0 then return "belum tersedia" end
+	if range.minimum == range.maximum then return clean(range.minimum) end
+	return clean(range.minimum) .. " sampai " .. clean(range.maximum)
+end
+phaseData(phase)
 local function note(message)
 	table.insert(notes, message)
 	if #notes > 20 then table.remove(notes, 1) end
@@ -56,7 +78,7 @@ end
 local function report()
 	local listenerCount = 0
 	for _ in pairs(hooks) do listenerCount += 1 end
-	local lines = {"Darus Hub uji LuckPet v1", status,
+	local lines = {"Darus Hub uji LuckPet v2", status,
 		"LuckPet lokal saat ini: " .. clean(player:GetAttribute("LuckPet")),
 		"Fase: " .. phase .. (active and ("; sisa " .. math.max(0, math.ceil(deadline - os.clock())) .. " detik") or ""),
 		"Listener NotifyClient rod: " .. listenerCount,
@@ -64,9 +86,25 @@ local function report()
 		"luckUsed dicatat dari payload GotFish; makna dan rumusnya belum diverifikasi.",
 		"Fase mengikuti waktu event diterima. Selesaikan lemparan sebelum memulai/mengakhiri uji.", "\nCATATAN:"}
 	for _, message in ipairs(notes) do table.insert(lines, message) end
-	table.insert(lines, "\nTANGKAPAN (40 event terakhir, terbaru di bawah):")
-	if #events == 0 then table.insert(lines, "Belum ada event GotFish. Lakukan tangkapan melalui game.") end
-	for _, event in ipairs(events) do table.insert(lines, event) end
+	table.insert(lines, "\nRINGKASAN PER FASE (AWAL + 3 uji terakhir):")
+	for _, name in ipairs(phaseOrder) do
+		local data = phases[name]
+		table.insert(lines, name .. ": tangkapan=" .. data.count .. "; luckUsed=" .. rangeText(data.luck)
+			.. "; luckUsed terbaca=" .. data.luck.known .. "/" .. data.count .. "; LuckPet lokal=" .. rangeText(data.pet))
+	end
+	if testIndex > 0 then
+		local before = phases[testIndex == 1 and "AWAL" or ("SETELAH UJI " .. (testIndex - 1))]
+		local during = phases["UJI " .. testIndex]
+		if not before or before.luck.known == 0 or not during or during.luck.known == 0 then
+			table.insert(lines, "Perbandingan belum lengkap: diperlukan luckUsed sebelum dan selama uji.")
+		end
+	end
+	for _, name in ipairs(phaseOrder) do
+		table.insert(lines, "\nSAMPEL " .. name .. " (maks 20 terakhir pada fase ini):")
+		local data = phases[name]
+		if #data.samples == 0 then table.insert(lines, "Belum ada event GotFish pada fase ini.") end
+		for _, event in ipairs(data.samples) do table.insert(lines, event) end
+	end
 	return table.concat(lines, "\n")
 end
 local function refresh()
@@ -87,6 +125,7 @@ local function restoreValue(reason)
 		status = "LuckPet sudah berubah menjadi " .. clean(current) .. "; nilai terbaru dipertahankan (" .. reason .. ")."
 	end
 	active, phase = false, "SETELAH UJI " .. testIndex
+	phaseData(phase)
 	note(status)
 	return true
 end
@@ -106,6 +145,7 @@ local function beginTest()
 	if not ok then status = "Gagal mengubah nilai lokal: " .. clean(err); refresh(); return end
 	testIndex += 1
 	active, phase = true, "UJI " .. testIndex
+	phaseData(phase)
 	status = "LuckPet lokal: " .. clean(original) .. " -> " .. clean(applied) .. ". Pemulihan otomatis setelah 60 detik."
 	note(status)
 	refresh()
@@ -126,8 +166,12 @@ local function attachRod(tool)
 			.. " | luckUsed=" .. clean(data.luckUsed) .. " | chance=" .. clean(data.chance)
 			.. " | LuckPet lokal=" .. clean(player:GetAttribute("LuckPet"))
 			.. " | LuckPass=" .. clean(player:GetAttribute("LuckPass")) .. " | LuckTeman=" .. clean(player:GetAttribute("LuckTeman"))
-		table.insert(events, entry)
-		if #events > 40 then table.remove(events, 1) end
+		local bucket = phaseData(phase)
+		bucket.count += 1
+		observe(bucket.luck, data.luckUsed)
+		observe(bucket.pet, player:GetAttribute("LuckPet"))
+		table.insert(bucket.samples, entry)
+		if #bucket.samples > 20 then table.remove(bucket.samples, 1) end
 		refresh()
 	end)
 end

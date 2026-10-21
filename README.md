@@ -177,7 +177,7 @@ Belum diuji langsung di Roblox. Jalankan pemeriksaan dengan
 
 ## Uji perubahan LuckPet
 
-[`DarusLuckTest.lua`](./DarusLuckTest.lua) adalah skrip terpisah untuk eksperimen
+[`DarusLuckTest.lua`](./DarusLuckTest.lua), **uji v2**, adalah skrip terpisah untuk eksperimen
 sementara pada atribut **LuckPet lokal**, bukan fitur pada menu utama hub.
 Menjalankannya belum mengubah nilai. Biarkan beberapa tangkapan masuk sebagai data
 **AWAL**, hentikan pancing setelah lemparan selesai, lalu isi nilai (default **20**)
@@ -186,6 +186,12 @@ server yang sama. Tekan **Salin laporan** setelah uji selesai.
 
 Skrip mencatat `luckUsed` dan `chance` asli dari event `GotFish` rod, beserta fase
 pengujian dan atribut bonus lokal. Nilai tidak tersedia dicatat sebagai `nil`.
+Data awal dan tiga uji terakhir disimpan per fase: jumlah semua event, rentang
+`luckUsed`, jumlah nilai numerik yang terbaca, rentang LuckPet lokal, dan maksimal
+20 sampel terakhir setiap fase. Banyak tangkapan setelah uji tidak menghapus sampel
+awal atau selama uji. Data awal atau saat uji yang belum tersedia ditandai sebagai
+perbandingan belum lengkap. Laporan v1 yang sudah kehilangan sampel lama tidak
+bisa dipulihkan; perlu menjalankan uji baru untuk mengumpulkan pembanding.
 Fase mengikuti waktu penerimaan event; lemparan yang melintasi pergantian fase
 bisa mencampurkan hasil. Perubahan teks/atribut lokal tidak membuktikan perubahan
 peluang server; makna `luckUsed` dan rumus peluang masih perlu diverifikasi.
@@ -194,8 +200,10 @@ Nilai awal dipulihkan setelah 60 detik, saat **Pulihkan**, saat ditutup, atau sa
 skrip dijalankan ulang. Jika LuckPet sudah berubah ke nilai lain di luar eksperimen,
 uji berhenti dan mempertahankan nilai terbaru. Nilai masukan harus 0–1000 dan
 atribut awal harus berupa angka. Skrip tidak mengirim permintaan pancing atau
-permintaan perubahan luck ke server. **19 pemeriksaan simulasi** lulus, termasuk
+permintaan perubahan luck ke server. **24 pemeriksaan simulasi** lulus, termasuk
 timeout, input tidak valid, pemulihan, perubahan dari luar, pergantian rod, dan cleanup.
+Regresi penyimpanan fase mencakup 75 tangkapan setelah pemulihan, sampel yang dibatasi
+per fase, ringkasan semua event, dan nilai `luckUsed` yang tidak tersedia.
 Belum diuji langsung di Roblox. Jalankan pemeriksaan dengan
 `tests/run-luck.ps1 -LuauDirectory C:\path\to\luau -Target DarusLuckTest`.
 
