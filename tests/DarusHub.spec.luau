@@ -584,8 +584,8 @@ check(findText("Terakhir: Capital Chance | Normal | Rare | 1 dari 4K","TextLabel
 for _,value in ipairs({0,-0.01,math.huge,-math.huge,0/0,1e-320,"1/0.5"}) do catchOdds("Invalid Probability",value,"Common") end
 check(findText("Peluang terbaca: 13/20","TextLabel",oddsPage)~=nil,"invalid probabilities and overflowing reciprocals stay unresolved")
 click("Lihat / Salin Diagnostik Statistik")
-check(findText("diagnostik statistik v2.3 (probabilitas event)","TextBox",oddsPage)~=nil,"diagnostic identifies probability parser version")
-check(findText("DARUS HUB  /  v2.3","TextLabel")~=nil,"running build visible without opening diagnostics")
+check(findText("diagnostik statistik v2.4 (probabilitas event)","TextBox",oddsPage)~=nil,"diagnostic identifies probability parser version")
+check(findText("DARUS HUB  /  v2.4","TextLabel")~=nil,"running build visible without opening diagnostics")
 click("Reset Statistik Sesi")
 -- Replay the five newest records supplied in the user's v1 diagnostic.
 for _,case in ipairs({
@@ -716,6 +716,20 @@ check(findText("Ikan terlangka\n\nIkan: Inventory Secret\nMutasi: Normal\nRarity
 check(findText("Tangkapan: 2","TextLabel",oddsPage)~=nil,"inventory read does not import preexisting fish")
 check(findText("Peluang terbaca: 2/2","TextLabel",oddsPage)~=nil,"inventory enrichment updates coverage")
 getAll.serverCallback=function() return {} end
+for _,case in ipairs({
+	{69999,"70K"}, {6500,"6.5K"}, {6250,"6.25K"}, {6501,"7K"}, {6500.1,"7K"},
+	{999999,"1M"}, {999999999,"1B"}, {2500000000,"2.5B"}, {2750000000,"3B"},
+	{999.9,"1K"}, {1/6500,"6.5K"},
+}) do
+	click("Reset Statistik Sesi")
+	catchOdds("Rounded Fish",case[1])
+	check(findText("Terakhir: Rounded Fish | Normal | Secret | 1 dari " .. case[2],"TextLabel",oddsPage)~=nil,"display rounding for " .. tostring(case[1]))
+end
+click("Reset Statistik Sesi")
+catchOdds("Astral Kelpie",69999.4,"Mythical")
+catchOdds("Lower Odds",69999,"Mythical")
+check(findText("Ikan terlangka\n\nIkan: Astral Kelpie\nMutasi: Normal\nRarity: Mythical\nPeluang: 1 dari 70K","TextLabel",oddsPage)~=nil,"rounded rarest card still ranks by original odds")
+check(findText("#1  Astral Kelpie | Normal | Mythical | 1 dari 70K","TextLabel",oddsPage)~=nil,"history applies same rounding as rarest card")
 click("Reset Statistik Sesi")
 catchOdds("Four Thousand",4000)
 check(findText("1 dari 4K","TextLabel",oddsPage)~=nil,"4000 compacted to 4K")

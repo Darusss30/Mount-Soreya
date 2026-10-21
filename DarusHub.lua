@@ -27,7 +27,7 @@ for _, name in ipairs({"DarusHub", "DarusHubCollect"}) do
 	end
 end
 local State = {}
-local App = {version = "2.3", running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
+local App = {version = "2.4", running = true, threads = {}, connections = {}, snapshots = {}, owned = setmetatable({}, {__mode = "k"}),
 	dragSuppressed = {}, pending = {}, toggles = {}, fishingEpoch = 0, lastError = {}}
 local Gui = Instance.new("ScreenGui", PlayerGui)
 Gui.Name = "DarusHub"
@@ -326,7 +326,15 @@ function App.FormatChance(value)
 	if value >= 1e9 then scale, suffix = 1e9, "B"
 	elseif value >= 1e6 then scale, suffix = 1e6, "M"
 	elseif value >= 1e3 then scale, suffix = 1e3, "K" end
-	local text = string.format("%.3f", value / scale):gsub("0+$", ""):gsub("%.$", "")
+	local compact = value / scale
+	-- Preserve fractions up to .5; round larger fractions up for display only.
+	-- Ignore tiny reciprocal floating-point noise at the .5 boundary.
+	if compact - math.floor(compact) > 0.5 + 1e-9 then compact = math.ceil(compact) end
+	if compact >= 1000 and suffix ~= "B" then
+		compact /= 1000
+		suffix = ({[""] = "K", K = "M", M = "B"})[suffix]
+	end
+	local text = string.format("%.3f", compact):gsub("0+$", ""):gsub("%.$", "")
 	return text .. suffix
 end
 

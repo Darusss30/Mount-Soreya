@@ -4,7 +4,7 @@ Darus Hub dikembangkan dari **`UBEYHUB.lua`**, bukan `UbeyHubV3.lua`.
 Sumber: [UbeyDev/Ubey-Hub — UBEYHUB.lua](https://github.com/UbeyDev/Ubey-Hub/blob/7152183/UBEYHUB.lua).
 Berkas utama adalah [`DarusHub.lua`](./DarusHub.lua).
 Menu langsung terbuka tanpa key, verifikasi HWID, Discord aktivasi, atau Supabase.
-Versi saat ini: **2.3**, terlihat di bagian atas hub dan laporan diagnostik.
+Versi saat ini: **2.4**, terlihat di bagian atas hub dan laporan diagnostik.
 
 ## Fitur
 
@@ -48,7 +48,7 @@ Webhook opsional memerlukan fungsi HTTP request yang kompatibel dan URL yang And
 Gunakan tombol X untuk mengakhiri sesi. Tombol minus dan tombol DH hanya mengubah tampilan menu.
 Untuk memperbarui, ambil [DarusHub.lua terbaru](https://raw.githubusercontent.com/Darusss30/Mount-Soreya/main/DarusHub.lua),
 tutup sesi lama, lalu jalankan berkas baru. Pembaruan di GitHub tidak mengganti kode
-yang sudah berjalan. Pastikan bagian atas hub menunjukkan **v2.3**; diagnostik
+yang sudah berjalan. Pastikan bagian atas hub menunjukkan **v2.4**; diagnostik
 bertanda **v1** masih berasal dari versi sebelum perbaikan probabilitas.
 **Anti-AFK** dan **Auto Join Galatama** otomatis ON saat hub dibuka atau konfigurasi
 direset. Keduanya tetap dapat dimatikan melalui tombol masing-masing.
@@ -77,8 +77,10 @@ Tombol reset dan diagnostik berada di bawah riwayat; menu aktif diberi warna pen
 Keterangan sumber popup tidak lagi ditambahkan ke nama ikan atau angka peluang.
 
 Angka ditampilkan singkat: `4000` menjadi **4K**, `1000000` menjadi **1M**, dan
-`2500000000` menjadi **2.5B**. Tampilan memakai maksimal tiga angka desimal;
-perbandingan tetap memakai angka penuh sebelum pembulatan tampilan.
+`2500000000` menjadi **2.5B**. Pecahan sampai 0,5 dipertahankan dengan maksimal
+tiga angka desimal (6.25K dan 6.5K tetap); pecahan di atas 0,5 dibulatkan ke atas
+(6.501K menjadi 7K, 69.999K menjadi 70K). Hasil 1000K/M menjadi 1M/B.
+Aturan berlaku pada kartu, riwayat, dan diagnostik; peringkat tetap memakai angka asli.
 
 **Riwayat 100 tangkapan terakhir** mencatat semua notifikasi tangkapan yang valid,
 termasuk ikan yang peluangnya belum terbaca. Data yang datang terlambat memperbarui
@@ -148,7 +150,9 @@ server game. Pengaturan pelindung lama diabaikan dan tidak disimpan kembali.
 
 ## Validasi
 
-Kompilasi Luau dan **167 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Kompilasi Luau dan **180 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
+Pembulatan diuji pada batas pecahan 0,5, Astral Kelpie 69.999K menjadi 70K,
+peralihan akhiran K/M/B, serta peringkat angka asli ketika tampilan dibulatkan sama.
 Regresi probabilitas memakai nilai persis dari diagnostik Emberback Spider Crab
 dan Enchanted Angelfish tanpa popup/ID, peringkat 600K hingga 200M, batas probabilitas,
 nilai tidak valid, serta konversi pada pembaruan ID dan inventaris.
