@@ -18,7 +18,7 @@ local title = Instance.new("TextLabel", panel)
 title.Size = UDim2.new(1, -55, 0, 38)
 title.Position = UDim2.fromOffset(12, 0)
 title.BackgroundTransparency = 1
-title.Text = "DARUS HUB / DIAGNOSTIK LUCK v1"
+title.Text = "DARUS HUB / DIAGNOSTIK LUCK v2"
 title.TextColor3 = Color3.fromRGB(115, 226, 239)
 title.TextSize = 14
 title.Font = Enum.Font.GothamBold
@@ -53,7 +53,7 @@ output.MultiLine, output.TextEditable, output.ClearTextOnFocus, output.TextWrapp
 output.Text = "Memindai data yang terlihat di klien..."
 
 local running, busy, baseline = true, false, nil
-local terms = {"luck", "rod", "pet", "friend", "event", "acara", "buff", "boost", "bonus"}
+local terms = {"luck", "keberuntungan", "rod", "pet", "friend", "teman", "event", "acara", "buff", "boost", "bonus", "cepat"}
 local function relevant(text)
 	text = text:lower()
 	for _, term in ipairs(terms) do
@@ -79,7 +79,7 @@ local function capture()
 	scan.Text = "Memindai..."
 	local values, structures, notices, count = {}, {}, {}, 0
 	local function add(key, value)
-		if count >= 250 then return end
+		if values[key] == nil and count >= 250 then return end
 		if values[key] == nil then count += 1 end
 		values[key] = value
 	end
@@ -99,13 +99,34 @@ local function capture()
 		end
 		if object:IsA("TextLabel") or object:IsA("TextButton") then
 			local text = clean(object.Text)
-			if relevant(text) or (context and text:match("^%s*[%dxX%.,%%+%-]+%s*$")) then
+			if relevant(text) or (context and (text:match("^%s*[%dxXkKmMbB%.,%%+%-%s]+%s*$") or text:lower() == "dipakai")) then
 				add(path .. " .Text", text)
 			end
 		end
 	end
 	local ok, err = pcall(function()
-		local roots = {{player, "LocalPlayer"}, {game:GetService("ReplicatedStorage"), "ReplicatedStorage"}}
+		-- Inventory pages get their own budget before unrelated inventory items/UI.
+		inspect(player, "LocalPlayer")
+		local roots, priorityRoots = {}, {}
+		local inventory = playerGui:FindFirstChild("Inventory")
+		local main = inventory and inventory:FindFirstChild("Main")
+		local content = main and main:FindFirstChild("Content")
+		local pages = content and content:FindFirstChild("Pages")
+		if pages then
+			for _, page in ipairs(pages:GetChildren()) do
+				local name = page.Name:lower()
+				if name:find("rod", 1, true) or name:find("pet", 1, true) then
+					table.insert(roots, {page, "LocalPlayer/PlayerGui/Inventory/Main/Content/Pages/" .. page.Name})
+					priorityRoots[page] = true
+				end
+			end
+		end
+		if inventory and #roots == 0 then
+			table.insert(roots, {inventory, "LocalPlayer/PlayerGui/Inventory"})
+			priorityRoots[inventory] = true
+		end
+		table.insert(roots, {player, "LocalPlayer"})
+		table.insert(roots, {game:GetService("ReplicatedStorage"), "ReplicatedStorage"})
 		if player.Character then table.insert(roots, {player.Character, "Character"}) end
 		for _, entry in ipairs(roots) do
 			local queue = {{entry[1], entry[2]}}
@@ -114,12 +135,18 @@ local function capture()
 				local object, path = queue[index][1], queue[index][2]
 				if not ignored(path) then
 					inspect(object, path)
-					for _, child in ipairs(object:GetChildren()) do
+					local children, nameCounts, nameIndexes = object:GetChildren(), {}, {}
+					for _, child in ipairs(children) do nameCounts[child.Name] = (nameCounts[child.Name] or 0) + 1 end
+					for _, child in ipairs(children) do
+						if priorityRoots[child] then continue end
 						if #queue >= 3000 then
 							notices[entry[2]] = "Batas 3000 objek tercapai: " .. entry[2]
 							break
 						end
-						table.insert(queue, {child, path .. "/" .. child.Name})
+						nameIndexes[child.Name] = (nameIndexes[child.Name] or 0) + 1
+						local name = child.Name
+						if nameCounts[name] > 1 then name ..= "[" .. nameIndexes[child.Name] .. "]" end
+						table.insert(queue, {child, path .. "/" .. name})
 					end
 				end
 				index += 1
@@ -131,8 +158,10 @@ local function capture()
 		inspect(game:GetService("Lighting"), "Lighting")
 	end)
 	if not running then return end
-	local lines = {"Darus Hub diagnostik luck v1", "Nilai klien bukan bukti bahwa server menerima perubahan luck.",
+	local lines = {"Darus Hub diagnostik luck v2", "Nilai klien bukan bukti bahwa server menerima perubahan luck.",
 		"Tidak mengubah data game, memanggil remote, atau menjalankan modul.",
+		"Buka tab Rods/Pets di inventaris, lalu Pindai ulang. Kartu rod/pet diprioritaskan.",
+		"Teks kartu adalah spesifikasi yang ditampilkan game; bukan otomatis total luck pemain.",
 		"Ganti satu rod/pet melalui menu game, lalu tekan Pindai ulang untuk membandingkan.", ""}
 	if not ok then table.insert(lines, "Pemindaian tidak lengkap: " .. clean(err)) end
 	if baseline then

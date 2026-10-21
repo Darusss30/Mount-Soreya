@@ -150,10 +150,16 @@ server game. Pengaturan pelindung lama diabaikan dan tidak disimpan kembali.
 
 ## Diagnostik luck terpisah
 
-Jalankan [`DarusLuckDiagnostic.lua`](./DarusLuckDiagnostic.lua) untuk membaca kandidat
+Jalankan [`DarusLuckDiagnostic.lua`](./DarusLuckDiagnostic.lua), **diagnostik v2**, untuk membaca kandidat
 data rod luck, pet, server luck, acara server, dan friend luck yang terlihat di klien.
 Tidak perlu mengganti atau menutup Darus Hub. Buka panel luck/pet game agar teksnya
-tersedia, lalu tekan **Pindai ulang**. Ubah satu rod atau pet melalui menu game dan
+tersedia, lalu tekan **Pindai ulang**. Tab Rods/Pets dipindai terlebih dahulu dengan
+anggaran objek tersendiri, sehingga daftar ikan/UI lain tidak menghabiskan anggarannya.
+Teks Indonesia **Keberuntungan**, angka terpisah seperti **1.8K**, dan penanda
+**DIPAKAI** ikut dibaca. Kartu dengan nama objek sama diberi indeks pada jalurnya
+agar nilai rod berbeda tidak saling menimpa. Nilai kartu merupakan spesifikasi
+yang ditampilkan game, bukan otomatis total luck pemain.
+Ubah satu rod atau pet melalui menu game dan
 pindai ulang untuk membandingkan nilai dengan pemindaian sebelumnya. Gunakan
 **Salin laporan** untuk menyalin hasil, atau pilih teks secara manual jika clipboard
 tidak tersedia. Tombol X menutup diagnostik.
@@ -164,8 +170,10 @@ atau mengirim laporan ke jaringan. Data yang hanya ada di server tidak bisa diba
 Nama yang cocok atau perubahan nilai klien **bukan bukti celah maupun bukti bahwa
 server menerima perubahan luck**. Pemindaian dibatasi 3000 objek per akar,
 250 nilai, dan 100 nama remote/modul; hasil dapat tidak lengkap. Panel hub dan chat
-dikecualikan dari pemindaian. Diagnostik ini sudah diperiksa kompilasinya, belum
-diuji langsung di Roblox.
+dikecualikan dari pemindaian. Kompilasi dan **9 pemeriksaan simulasi diagnostik**
+lulus, termasuk kartu Withering 1.8K / Diamond 1.4K di antara lebih dari 3000 objek UI.
+Belum diuji langsung di Roblox. Jalankan pemeriksaan dengan
+`tests/run-luck.ps1 -LuauDirectory C:\path\to\luau`.
 
 ## Validasi
 
