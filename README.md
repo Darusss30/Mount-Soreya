@@ -175,6 +175,30 @@ lulus, termasuk kartu Withering 1.8K / Diamond 1.4K di antara lebih dari 3000 ob
 Belum diuji langsung di Roblox. Jalankan pemeriksaan dengan
 `tests/run-luck.ps1 -LuauDirectory C:\path\to\luau`.
 
+## Uji perubahan LuckPet
+
+[`DarusLuckTest.lua`](./DarusLuckTest.lua) adalah skrip terpisah untuk eksperimen
+sementara pada atribut **LuckPet lokal**, bukan fitur pada menu utama hub.
+Menjalankannya belum mengubah nilai. Biarkan beberapa tangkapan masuk sebagai data
+**AWAL**, hentikan pancing setelah lemparan selesai, lalu isi nilai (default **20**)
+dan tekan **Uji 60 detik**. Lanjutkan memancing dengan rod, pet, teman, dan bonus
+server yang sama. Tekan **Salin laporan** setelah uji selesai.
+
+Skrip mencatat `luckUsed` dan `chance` asli dari event `GotFish` rod, beserta fase
+pengujian dan atribut bonus lokal. Nilai tidak tersedia dicatat sebagai `nil`.
+Fase mengikuti waktu penerimaan event; lemparan yang melintasi pergantian fase
+bisa mencampurkan hasil. Perubahan teks/atribut lokal tidak membuktikan perubahan
+peluang server; makna `luckUsed` dan rumus peluang masih perlu diverifikasi.
+
+Nilai awal dipulihkan setelah 60 detik, saat **Pulihkan**, saat ditutup, atau saat
+skrip dijalankan ulang. Jika LuckPet sudah berubah ke nilai lain di luar eksperimen,
+uji berhenti dan mempertahankan nilai terbaru. Nilai masukan harus 0–1000 dan
+atribut awal harus berupa angka. Skrip tidak mengirim permintaan pancing atau
+permintaan perubahan luck ke server. **19 pemeriksaan simulasi** lulus, termasuk
+timeout, input tidak valid, pemulihan, perubahan dari luar, pergantian rod, dan cleanup.
+Belum diuji langsung di Roblox. Jalankan pemeriksaan dengan
+`tests/run-luck.ps1 -LuauDirectory C:\path\to\luau -Target DarusLuckTest`.
+
 ## Validasi
 
 Kompilasi Luau dan **180 pemeriksaan regresi simulasi** lulus untuk basis `UBEYHUB.lua`.
